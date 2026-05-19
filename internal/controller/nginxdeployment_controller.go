@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -27,8 +28,8 @@ const (
 	nginxConfigVolumeName = "nginx-config"
 	configHashAnnotation  = "example.meigma.io/config-hash"
 
-	defaultNginxImage = "nginx:stable"
-	defaultNginxPort  = int32(80)
+	defaultNginxImage = "nginxinc/nginx-unprivileged:stable"
+	defaultNginxPort  = int32(8080)
 
 	conditionAvailable          = "Available"
 	reasonDeploymentReady       = "DeploymentReady"
@@ -42,11 +43,10 @@ type NginxDeploymentReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=configmaps;services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/status,verbs=patch
+// +kubebuilder:rbac:groups="",resources=configmaps;services,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -135,10 +135,12 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 		deployment.Spec.Template.Annotations = map[string]string{
 			configHashAnnotation: configHash(config),
 		}
+		deployment.Spec.Template.Spec.SecurityContext = nginxPodSecurityContext()
 		deployment.Spec.Template.Spec.Containers = []corev1.Container{
 			{
-				Name:  nginxContainerName,
-				Image: nginxImage(instance),
+				Name:            nginxContainerName,
+				Image:           nginxImage(instance),
+				SecurityContext: nginxContainerSecurityContext(),
 				Ports: []corev1.ContainerPort{
 					{
 						Name:          "http",
@@ -154,6 +156,7 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 						ReadOnly:  true,
 					},
 				},
+				Resources: nginxResourceRequirements(),
 			},
 		}
 		deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
@@ -287,8 +290,15 @@ func nginxConfig(instance *examplev1alpha1.NginxDeployment) string {
 	if instance.Spec.Config != "" {
 		return instance.Spec.Config
 	}
-	return fmt.Sprintf(`events {}
+	return fmt.Sprintf(`pid /tmp/nginx.pid;
+events {}
 http {
+  client_body_temp_path /tmp/client_temp;
+  proxy_temp_path /tmp/proxy_temp;
+  fastcgi_temp_path /tmp/fastcgi_temp;
+  uwsgi_temp_path /tmp/uwsgi_temp;
+  scgi_temp_path /tmp/scgi_temp;
+
   server {
     listen %d;
     location / {
@@ -318,6 +328,33 @@ func nginxPort(instance *examplev1alpha1.NginxDeployment) int32 {
 		return instance.Spec.Port
 	}
 	return defaultNginxPort
+}
+
+func nginxPodSecurityContext() *corev1.PodSecurityContext {
+	return &corev1.PodSecurityContext{
+		RunAsNonRoot: new(true),
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+}
+
+func nginxContainerSecurityContext() *corev1.SecurityContext {
+	return &corev1.SecurityContext{
+		AllowPrivilegeEscalation: new(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
+}
+
+func nginxResourceRequirements() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+			corev1.ResourceMemory: resource.MustParse("32Mi"),
+		},
+	}
 }
 
 func configHash(config string) string {

@@ -10,7 +10,7 @@ import (
 // NginxDeploymentSpec defines the desired state of NginxDeployment.
 type NginxDeploymentSpec struct {
 	// Image is the nginx container image to run.
-	// +kubebuilder:default="nginx:stable"
+	// +kubebuilder:default="nginxinc/nginx-unprivileged:stable"
 	// +optional
 	Image string `json:"image,omitempty"`
 
@@ -21,7 +21,7 @@ type NginxDeploymentSpec struct {
 	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Port is the container port nginx listens on.
-	// +kubebuilder:default=80
+	// +kubebuilder:default=8080
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
 	// +optional
@@ -55,6 +55,7 @@ type NginxDeploymentStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:validation:XValidation:rule="self.metadata.name.size() <= 63",message="metadata.name must be 63 characters or less because owned resources are named after the NginxDeployment"
 
 // NginxDeployment is the Schema for the nginxdeployments API
 type NginxDeployment struct {

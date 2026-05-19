@@ -3,9 +3,11 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -153,6 +155,20 @@ var _ = Describe("NginxDeployment Controller", func() {
 		Expect(deployment.Spec.Replicas).NotTo(BeNil())
 		Expect(*deployment.Spec.Replicas).To(Equal(int32(0)))
 	})
+
+	It("rejects names too long for same-named children and selector labels", func() {
+		resource := &examplev1alpha1.NginxDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-" + strings.Repeat("a", 64),
+				Namespace: testNamespace,
+			},
+			Spec: nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n"),
+		}
+
+		err := k8sClient.Create(ctx, resource)
+		Expect(err).To(HaveOccurred())
+		Expect(apierrors.IsInvalid(err)).To(BeTrue())
+	})
 })
 
 func nginxSpec(replicas int32, image string, port int32, config string) examplev1alpha1.NginxDeploymentSpec {
@@ -220,11 +236,14 @@ func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deploym
 	Expect(deployment.Spec.Selector.MatchLabels).To(Equal(selectorLabelsFor(resource)))
 	Expect(deployment.Spec.Template.Labels).To(Equal(labelsFor(resource)))
 	Expect(deployment.Spec.Template.Annotations).To(HaveKeyWithValue(configHashAnnotation, configHash(nginxConfig(resource))))
+	Expect(deployment.Spec.Template.Spec.SecurityContext).To(Equal(nginxPodSecurityContext()))
 
 	Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 	container := deployment.Spec.Template.Spec.Containers[0]
 	Expect(container.Name).To(Equal(nginxContainerName))
 	Expect(container.Image).To(Equal(nginxImage(resource)))
+	Expect(container.SecurityContext).To(Equal(nginxContainerSecurityContext()))
+	Expect(container.Resources).To(Equal(nginxResourceRequirements()))
 	Expect(container.Ports).To(HaveLen(1))
 	Expect(container.Ports[0].Name).To(Equal("http"))
 	Expect(container.Ports[0].ContainerPort).To(Equal(nginxPort(resource)))

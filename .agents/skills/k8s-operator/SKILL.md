@@ -16,6 +16,9 @@ workflow, then tighten behavior from what the prototype exposes.
   default when the pointer is nil.
 - Keep defaults close to the reconciler too. API-server defaulting helps cluster
   objects, but tests and typed clients may construct objects directly.
+- If child resources are named after the custom resource or the custom resource
+  name is reused in labels, intentionally validate the CR name length or derive
+  child names and selector labels from a stable label-safe hash.
 - After changing API field types, regenerate deepcopy code and manifests. A Go
   pointer change may mainly show up in `zz_generated.deepcopy.go`.
 
@@ -34,6 +37,12 @@ workflow, then tighten behavior from what the prototype exposes.
   template annotation.
 - If status depends on a just-created or patched child, refetch the child before
   deriving status so generation and defaulted fields are current.
+- Demo workloads should be compatible with Restricted Pod Security by default:
+  use an unprivileged image and high port, set pod/container security contexts,
+  drop Linux capabilities, disable privilege escalation, set seccomp, and add
+  resource requests.
+- RBAC markers should match current behavior. Do not leave generated primary-CR
+  write verbs or finalizer verbs unless the reconciler actually uses them.
 
 ## Status
 
@@ -53,8 +62,8 @@ workflow, then tighten behavior from what the prototype exposes.
 ## Tests
 
 - Envtest should prove owned child creation, owner refs, labels/selectors,
-  desired images/ports/replicas, mounted config, rollout hash annotations, and
-  update behavior.
+  desired images/ports/replicas, mounted config, restricted-compatible pod
+  settings, resource requests, rollout hash annotations, and update behavior.
 - Add stale-status tests when parent status depends on child status. Make the
   child available, change the parent spec, reconcile, and assert the parent does
   not stay available until the child observes the new generation.
@@ -69,13 +78,15 @@ workflow, then tighten behavior from what the prototype exposes.
 - Moon is the task front door. Do not reintroduce generated Makefile paths into
   template tests or docs.
 - Keep one runnable smoke path that installs the CRD/controller, applies the
-  sample custom resource, waits for the parent condition, and verifies the owned
-  workload/service exist.
+  sample custom resource in a Restricted-enforced namespace, waits for the
+  parent condition, and verifies the owned workload/service exist.
 - For Kind-backed tests with locally loaded images, ensure the Deployment uses
   the exact loaded tag and `imagePullPolicy: IfNotPresent` before readiness
   waits. Default `:latest` behavior can force remote pulls.
 - Prefer e2e task cleanup that removes only a Kind cluster the task created; do
   not delete a pre-existing developer cluster with the same name.
+- Cluster-scoped e2e resources such as `ClusterRoleBinding` must be created
+  idempotently or cleared before creation, then cleaned up in suite teardown.
 
 ## Verification
 

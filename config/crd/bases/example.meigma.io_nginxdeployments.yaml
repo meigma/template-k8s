@@ -43,11 +43,11 @@ spec:
                 description: Config is the nginx configuration file content.
                 type: string
               image:
-                default: nginx:stable
+                default: nginxinc/nginx-unprivileged:stable
                 description: Image is the nginx container image to run.
                 type: string
               port:
-                default: 80
+                default: 8080
                 description: Port is the container port nginx listens on.
                 format: int32
                 maximum: 65535
@@ -140,6 +140,10 @@ spec:
         required:
         - spec
         type: object
+        x-kubernetes-validations:
+        - message: metadata.name must be 63 characters or less because owned resources
+            are named after the NginxDeployment
+          rule: self.metadata.name.size() <= 63
     served: true
     storage: true
     subresources:

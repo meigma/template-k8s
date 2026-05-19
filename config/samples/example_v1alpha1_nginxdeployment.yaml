@@ -7,13 +7,20 @@ metadata:
   name: nginx-sample
 spec:
   replicas: 1
-  image: nginx:stable
-  port: 80
+  image: nginxinc/nginx-unprivileged:stable
+  port: 8080
   config: |
+    pid /tmp/nginx.pid;
     events {}
     http {
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+
       server {
-        listen 80;
+        listen 8080;
         location / {
           return 200 "hello from template-k8s\n";
         }

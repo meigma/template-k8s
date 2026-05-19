@@ -11,11 +11,9 @@ rules:
   - services
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - apps
@@ -23,35 +21,21 @@ rules:
   - deployments
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - example.meigma.io
   resources:
   - nginxdeployments
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - example.meigma.io
-  resources:
-  - nginxdeployments/finalizers
-  verbs:
-  - update
 - apiGroups:
   - example.meigma.io
   resources:
   - nginxdeployments/status
   verbs:
-  - get
   - patch
-  - update
