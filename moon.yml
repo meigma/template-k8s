@@ -99,7 +99,7 @@ tasks:
       runDepsInParallel: false
 
   lint:
-    command: 'proto run golangci-lint -- run --config .golangci.yml ./... --show-stats=false'
+    command: 'golangci-lint run --config .golangci.yml ./... --show-stats=false'
     inputs:
       - '@group(goSources)'
       - '@group(lintConfig)'
@@ -107,7 +107,7 @@ tasks:
       cache: false
 
   lint-fix:
-    command: 'proto run golangci-lint -- run --config .golangci.yml ./... --fix --show-stats=false'
+    command: 'golangci-lint run --config .golangci.yml ./... --fix --show-stats=false'
     inputs:
       - '@group(goSources)'
       - '@group(lintConfig)'
@@ -116,7 +116,7 @@ tasks:
       runInCI: false
 
   lint-config:
-    command: 'proto run golangci-lint -- config verify --config .golangci.yml'
+    command: 'golangci-lint config verify --config .golangci.yml'
     inputs:
       - '@group(lintConfig)'
     options:
