@@ -150,7 +150,7 @@ tasks:
       cache: false
 
   build:
-    command: 'go build -o bin/manager cmd/main.go'
+    command: 'go build -o bin/manager ./cmd'
     deps:
       - 'root:manifests'
       - 'root:generate'
@@ -164,7 +164,7 @@ tasks:
       runDepsInParallel: false
 
   run:
-    command: 'go run ./cmd/main.go'
+    command: 'go run ./cmd'
     deps:
       - 'root:manifests'
       - 'root:generate'
