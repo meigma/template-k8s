@@ -2,8 +2,6 @@
 .direnv/
 .moon/cache/
 .moon/docker/
-.agents/
-.claude/
 .journal/
 .wt/
 
