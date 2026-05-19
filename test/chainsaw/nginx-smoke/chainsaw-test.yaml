@@ -17,6 +17,10 @@ spec:
           kubectl logs -n template-k8s-system -l control-plane=controller-manager -c manager --tail=-1 --prefix
           echo "== manager namespace events =="
           kubectl get events -n template-k8s-system --sort-by=.lastTimestamp
+          echo "== metrics curl logs =="
+          kubectl logs -n template-k8s-system curl-metrics
+          echo "== metrics curl pod =="
+          kubectl describe pod -n template-k8s-system curl-metrics
           echo "== sample namespace events =="
           kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp
           echo "== controller manager deployment =="
@@ -55,6 +59,101 @@ spec:
               metadata:
                 namespace: template-k8s-system
                 name: template-k8s-controller-manager-metrics-service
+        - script:
+            timeout: 1m
+            workDir: ../../..
+            content: |
+              set -euo pipefail
+              export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+              kubectl apply -f - <<'YAML'
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: metrics-smoke
+                namespace: template-k8s-system
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: template-k8s-metrics-smoke
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: template-k8s-metrics-reader
+              subjects:
+                - kind: ServiceAccount
+                  name: metrics-smoke
+                  namespace: template-k8s-system
+              ---
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: curl-metrics
+                namespace: template-k8s-system
+              spec:
+                restartPolicy: Never
+                serviceAccountName: metrics-smoke
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                volumes:
+                  - name: tmp
+                    emptyDir: {}
+                containers:
+                  - name: curl
+                    image: curlimages/curl:8.11.1
+                    volumeMounts:
+                      - name: tmp
+                        mountPath: /tmp
+                    command:
+                      - /bin/sh
+                      - -c
+                    args:
+                      - |
+                        token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+                        for i in $(seq 1 30); do
+                          status="$(curl -sk -o /tmp/metrics.txt -w '%{http_code}' -H "Authorization: Bearer ${token}" https://template-k8s-controller-manager-metrics-service.template-k8s-system.svc.cluster.local:8443/metrics || true)"
+                          echo "metrics status: ${status}"
+                          if [ "${status}" = "200" ]; then
+                            head -n 20 /tmp/metrics.txt
+                            exit 0
+                          fi
+                          sleep 2
+                        done
+                        exit 1
+                    securityContext:
+                      readOnlyRootFilesystem: true
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                      runAsNonRoot: true
+                      runAsUser: 1000
+                      seccompProfile:
+                        type: RuntimeDefault
+              YAML
+        - wait:
+            apiVersion: v1
+            kind: Pod
+            namespace: template-k8s-system
+            name: curl-metrics
+            timeout: 3m
+            for:
+              jsonPath:
+                path: '{.status.phase}'
+                value: Succeeded
+        - script:
+            timeout: 1m
+            content: |
+              set -euo pipefail
+              export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+              logs="$(kubectl logs -n template-k8s-system curl-metrics)"
+              printf '%s\n' "$logs"
+              case "$logs" in
+                *"metrics status: 200"*) ;;
+                *) exit 1 ;;
+              esac
       cleanup:
         - script:
             timeout: 3m
@@ -63,6 +162,9 @@ spec:
               set +e
               export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
               kubectl delete -n "$NAMESPACE" -f config/samples/example_v1alpha1_nginxdeployment.yaml --ignore-not-found=true || true
+              kubectl delete pod curl-metrics -n template-k8s-system --ignore-not-found=true || true
+              kubectl delete clusterrolebinding template-k8s-metrics-smoke --ignore-not-found=true || true
+              kubectl delete serviceaccount metrics-smoke -n template-k8s-system --ignore-not-found=true || true
               moon run root:undeploy || true
               moon run root:uninstall || true
               kubectl delete namespace template-k8s-system --ignore-not-found=true || true

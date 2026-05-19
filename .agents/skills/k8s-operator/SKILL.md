@@ -112,5 +112,6 @@ When changing e2e wiring, also run:
 
 ```sh
 chainsaw version
+moon run root:chainsaw-lint
 moon run root:test-e2e
 ```

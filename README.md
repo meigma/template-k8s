@@ -74,6 +74,7 @@ moon run root:vet
 moon run root:lint
 moon run root:lint-fix
 moon run root:lint-config
+moon run root:chainsaw-lint
 moon run root:build
 moon run root:run
 moon run root:test-e2e

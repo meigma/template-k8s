@@ -117,6 +117,19 @@ tasks:
     options:
       cache: false
 
+  chainsaw-lint:
+    script: |
+      set -euo pipefail
+      chainsaw lint configuration --file test/chainsaw/chainsaw-config.yaml
+      find test/chainsaw -name chainsaw-test.yaml -print | while IFS= read -r test_file; do
+        chainsaw lint test --file "$test_file"
+      done
+    inputs:
+      - '@group(chainsawSources)'
+      - '@group(chainsawTooling)'
+    options:
+      cache: false
+
   build:
     command: 'go build -o bin/manager cmd/main.go'
     deps:
@@ -204,12 +217,15 @@ tasks:
       command -v "$kind_bin" >/dev/null
       cluster="${KIND_CLUSTER:-template-k8s-test-e2e}"
       manager_image="${IMG:-example.com/template-k8s:v0.0.1}"
+      kubeconfig_dir="$(mktemp -d)"
+      kubeconfig="$kubeconfig_dir/kubeconfig"
       created=0
       cleanup() {
         status="$?"
         if [ "$created" -eq 1 ]; then
           "$kind_bin" delete cluster --name "$cluster"
         fi
+        rm -rf "$kubeconfig_dir"
         exit "$status"
       }
       trap cleanup EXIT
@@ -219,6 +235,8 @@ tasks:
         created=1
         "$kind_bin" create cluster --name "$cluster"
       fi
+      "$kind_bin" export kubeconfig --name "$cluster" --kubeconfig "$kubeconfig"
+      export KUBECONFIG="$kubeconfig"
       IMG="$manager_image" moon run root:docker-build
       "$kind_bin" load docker-image "$manager_image" --name "$cluster"
       KIND="$kind_bin" KIND_CLUSTER="$cluster" IMG="$manager_image" KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}" \
