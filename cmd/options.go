@@ -47,6 +47,19 @@ func parseManagerOptions(args []string) (managerOptions, error) {
 	return options, nil
 }
 
+func mustParseManagerOptions(args []string) managerOptions {
+	var options managerOptions
+	parser, err := newManagerParser(&options)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = parser.Parse(args)
+	parser.FatalIfErrorf(err)
+
+	return options
+}
+
 func slogLevel(level string) (slog.Level, error) {
 	switch level {
 	case "debug":
@@ -60,6 +73,15 @@ func slogLevel(level string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("unsupported log level %q", level)
 	}
+}
+
+func mustNewControllerLogger(options managerOptions, out io.Writer) logr.Logger {
+	logger, err := newControllerLogger(options, out)
+	if err != nil {
+		panic(err)
+	}
+
+	return logger
 }
 
 func newControllerLogger(options managerOptions, out io.Writer) (logr.Logger, error) {
