@@ -8,3 +8,9 @@ started: 2026-05-18
 Goal for the session: turn the repository's example operator into something that actually works, keeping the effort intentionally simple so it can validate the real template workflows.
 Current state of the world: this is the first official session. The personal journal branch `journal/jmgilman` exists and contains the root journal scaffold. The default branch is `master` at `4d91d99` (`feat: bootstrap Kubernetes operator template`). No substantive operator work has been started in this session.
 Plan: after session priming, inspect the existing example operator, choose the smallest useful working prototype, implement it in an isolated Worktrunk branch, and verify it with the repo's normal checks.
+
+## 2026-05-18 17:43 — Started nginx API scaffold
+Created implementation worktree `feat/nginx-api` at `.wt/feat-nginx-api`. The requested first slice is to remove the generated Widget API/controller and use Kubebuilder to create a new base API object and controller for the nginx prototype, without adding reconcile logic yet.
+
+## 2026-05-18 17:58 — Nginx API scaffold committed
+Replaced the Widget scaffold with a Kubebuilder-generated `NginxDeployment` API and controller on branch `feat/nginx-api` (`625ddb2`). The API currently carries simple prototype fields for `image`, `replicas`, `port`, `config`, and status `readyReplicas`/`conditions`; the reconciler remains generated/no-op as requested. Regenerated deepcopy code, CRD, RBAC, and sample manifests. Verification passed: `moon run root:build`, `go test ./...` after installing ignored envtest assets under `bin/k8s/1.35.0-darwin-arm64`, `moon run root:lint`, and `git diff --cached --check`.
