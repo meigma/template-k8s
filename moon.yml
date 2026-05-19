@@ -39,7 +39,6 @@ fileGroups:
     - '.moon/proto/setup-envtest.toml'
   lintConfig:
     - '.golangci.yml'
-    - '.custom-gcl.yml'
     - '.prototools'
     - '.moon/proto/golangci-lint.toml'
 
@@ -99,17 +98,8 @@ tasks:
       cache: false
       runDepsInParallel: false
 
-  lint-tool:
-    command: 'bash -c ''mkdir -p bin && if [ -f .custom-gcl.yml ]; then rm -f bin/golangci-lint bin/golangci-lint-custom && golangci-lint custom --destination bin --name golangci-lint-custom && mv -f bin/golangci-lint-custom bin/golangci-lint; else ln -sf "$(command -v golangci-lint)" bin/golangci-lint; fi'''
-    inputs:
-      - '@group(lintConfig)'
-    outputs:
-      - 'bin/golangci-lint'
-
   lint:
-    command: 'bin/golangci-lint run'
-    deps:
-      - 'root:lint-tool'
+    command: 'proto run golangci-lint -- run --config .golangci.yml ./... --show-stats=false'
     inputs:
       - '@group(goSources)'
       - '@group(lintConfig)'
@@ -117,9 +107,7 @@ tasks:
       cache: false
 
   lint-fix:
-    command: 'bin/golangci-lint run --fix'
-    deps:
-      - 'root:lint-tool'
+    command: 'proto run golangci-lint -- run --config .golangci.yml ./... --fix --show-stats=false'
     inputs:
       - '@group(goSources)'
       - '@group(lintConfig)'
@@ -128,9 +116,7 @@ tasks:
       runInCI: false
 
   lint-config:
-    command: 'bin/golangci-lint config verify'
-    deps:
-      - 'root:lint-tool'
+    command: 'proto run golangci-lint -- config verify --config .golangci.yml'
     inputs:
       - '@group(lintConfig)'
     options:
