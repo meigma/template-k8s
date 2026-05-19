@@ -18,7 +18,7 @@ type NginxDeploymentSpec struct {
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=0
 	// +optional
-	Replicas int32 `json:"replicas,omitempty"`
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Port is the container port nginx listens on.
 	// +kubebuilder:default=80

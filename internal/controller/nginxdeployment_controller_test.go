@@ -33,98 +33,136 @@ var _ = Describe("NginxDeployment Controller", func() {
 	})
 
 	It("creates owned nginx resources and reports initial availability", func() {
-		spec := examplev1alpha1.NginxDeploymentSpec{
-			Replicas: 2,
-			Image:    "nginx:1.27",
-			Port:     8080,
-			Config:   "events {}\nhttp { server { listen 8080; } }\n",
-		}
+		spec := nginxSpec(2, "nginx:1.27", 8080, "events {}\nhttp { server { listen 8080; } }\n")
 		resource := createNginxDeployment(ctx, "creates-children", spec)
 
 		reconcileResource(ctx, controllerReconciler, resource)
 
 		expectConfigMap(resource, spec.Config)
-		expectDeployment(resource, spec)
+		expectDeployment(resource)
 		expectService(resource, spec.Port)
 
 		current := fetchNginxDeployment(ctx, objectKeyFor(resource))
 		Expect(current.Status.ReadyReplicas).To(Equal(int32(0)))
-		expectAvailableCondition(current, metav1.ConditionFalse, reasonDeploymentProgressing)
+		expectAvailableCondition(current, metav1.ConditionFalse, reasonDeploymentStale)
 	})
 
 	It("updates owned resources when the spec changes", func() {
-		initialSpec := examplev1alpha1.NginxDeploymentSpec{
-			Replicas: 1,
-			Image:    "nginx:stable",
-			Port:     80,
-			Config:   "events {}\nhttp { server { listen 80; } }\n",
-		}
+		initialSpec := nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
 		resource := createNginxDeployment(ctx, "updates-children", initialSpec)
 		reconcileResource(ctx, controllerReconciler, resource)
 		initialDeployment := fetchDeployment(ctx, objectKeyFor(resource))
 		initialHash := initialDeployment.Spec.Template.Annotations[configHashAnnotation]
 
 		updated := fetchNginxDeployment(ctx, objectKeyFor(resource))
-		updated.Spec = examplev1alpha1.NginxDeploymentSpec{
-			Replicas: 3,
-			Image:    "nginx:1.28",
-			Port:     8081,
-			Config:   "events {}\nhttp { server { listen 8081; } }\n",
-		}
+		updated.Spec = nginxSpec(3, "nginx:1.28", 8081, "events {}\nhttp { server { listen 8081; } }\n")
 		Expect(k8sClient.Update(ctx, updated)).To(Succeed())
 
 		reconcileResource(ctx, controllerReconciler, updated)
 
 		expectConfigMap(updated, updated.Spec.Config)
-		deployment := expectDeployment(updated, updated.Spec)
+		deployment := expectDeployment(updated)
 		Expect(deployment.Spec.Template.Annotations[configHashAnnotation]).NotTo(Equal(initialHash))
 		expectService(updated, updated.Spec.Port)
 	})
 
 	It("uses a default nginx config when the spec omits config", func() {
-		spec := examplev1alpha1.NginxDeploymentSpec{
-			Replicas: 1,
-			Image:    "nginx:stable",
-			Port:     8082,
-		}
+		spec := nginxSpec(1, "nginx:stable", 8082, "")
 		resource := createNginxDeployment(ctx, "defaults-config", spec)
 
 		reconcileResource(ctx, controllerReconciler, resource)
 
 		expectedConfig := nginxConfig(resource)
 		expectConfigMap(resource, expectedConfig)
-		deployment := expectDeployment(resource, spec)
+		deployment := expectDeployment(resource)
 		Expect(deployment.Spec.Template.Annotations).To(HaveKeyWithValue(configHashAnnotation, configHash(expectedConfig)))
 		expectService(resource, spec.Port)
 	})
 
 	It("marks the resource available when the owned deployment has enough ready replicas", func() {
-		spec := examplev1alpha1.NginxDeploymentSpec{
-			Replicas: 2,
-			Image:    "nginx:stable",
-			Port:     80,
-			Config:   "events {}\nhttp { server { listen 80; } }\n",
-		}
+		spec := nginxSpec(2, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
 		resource := createNginxDeployment(ctx, "reports-readiness", spec)
 
 		reconcileResource(ctx, controllerReconciler, resource)
 		current := fetchNginxDeployment(ctx, objectKeyFor(resource))
 		Expect(current.Status.ReadyReplicas).To(Equal(int32(0)))
-		expectAvailableCondition(current, metav1.ConditionFalse, reasonDeploymentProgressing)
+		expectAvailableCondition(current, metav1.ConditionFalse, reasonDeploymentStale)
 
 		deployment := fetchDeployment(ctx, objectKeyFor(resource))
-		deployment.Status.Replicas = spec.Replicas
-		deployment.Status.ReadyReplicas = spec.Replicas
-		deployment.Status.AvailableReplicas = spec.Replicas
+		deployment.Status.ObservedGeneration = deployment.Generation
+		deployment.Status.Replicas = nginxReplicas(resource)
+		deployment.Status.ReadyReplicas = nginxReplicas(resource)
+		deployment.Status.AvailableReplicas = nginxReplicas(resource)
+		deployment.Status.Conditions = []appsv1.DeploymentCondition{
+			{
+				Type:   appsv1.DeploymentAvailable,
+				Status: corev1.ConditionTrue,
+				Reason: "MinimumReplicasAvailable",
+			},
+		}
 		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
 
 		reconcileResource(ctx, controllerReconciler, resource)
 
 		current = fetchNginxDeployment(ctx, objectKeyFor(resource))
-		Expect(current.Status.ReadyReplicas).To(Equal(spec.Replicas))
+		Expect(current.Status.ReadyReplicas).To(Equal(nginxReplicas(resource)))
 		expectAvailableCondition(current, metav1.ConditionTrue, reasonDeploymentReady)
 	})
+
+	It("does not report available from stale deployment status after a spec update", func() {
+		spec := nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
+		resource := createNginxDeployment(ctx, "stale-status", spec)
+
+		reconcileResource(ctx, controllerReconciler, resource)
+		deployment := fetchDeployment(ctx, objectKeyFor(resource))
+		deployment.Status.ObservedGeneration = deployment.Generation
+		deployment.Status.Replicas = 1
+		deployment.Status.ReadyReplicas = 1
+		deployment.Status.AvailableReplicas = 1
+		deployment.Status.Conditions = []appsv1.DeploymentCondition{
+			{
+				Type:   appsv1.DeploymentAvailable,
+				Status: corev1.ConditionTrue,
+				Reason: "MinimumReplicasAvailable",
+			},
+		}
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+		reconcileResource(ctx, controllerReconciler, resource)
+
+		current := fetchNginxDeployment(ctx, objectKeyFor(resource))
+		expectAvailableCondition(current, metav1.ConditionTrue, reasonDeploymentReady)
+
+		current.Spec = nginxSpec(1, "nginx:1.28", 80, "events {}\nhttp { server { listen 80; } }\n")
+		Expect(k8sClient.Update(ctx, current)).To(Succeed())
+
+		reconcileResource(ctx, controllerReconciler, current)
+
+		current = fetchNginxDeployment(ctx, objectKeyFor(resource))
+		expectAvailableCondition(current, metav1.ConditionFalse, reasonDeploymentStale)
+		deployment = fetchDeployment(ctx, objectKeyFor(resource))
+		Expect(deployment.Status.ObservedGeneration).To(BeNumerically("<", deployment.Generation))
+	})
+
+	It("preserves explicit scale-to-zero replicas", func() {
+		spec := nginxSpec(0, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
+		resource := createNginxDeployment(ctx, "scale-zero", spec)
+
+		reconcileResource(ctx, controllerReconciler, resource)
+
+		deployment := expectDeployment(resource)
+		Expect(deployment.Spec.Replicas).NotTo(BeNil())
+		Expect(*deployment.Spec.Replicas).To(Equal(int32(0)))
+	})
 })
+
+func nginxSpec(replicas int32, image string, port int32, config string) examplev1alpha1.NginxDeploymentSpec {
+	return examplev1alpha1.NginxDeploymentSpec{
+		Replicas: &replicas,
+		Image:    image,
+		Port:     port,
+		Config:   config,
+	}
+}
 
 func createNginxDeployment(
 	ctx context.Context,
@@ -174,14 +212,11 @@ func expectConfigMap(resource *examplev1alpha1.NginxDeployment, config string) {
 	Expect(configMap.Data).To(HaveKeyWithValue(nginxConfigKey, config))
 }
 
-func expectDeployment(
-	resource *examplev1alpha1.NginxDeployment,
-	spec examplev1alpha1.NginxDeploymentSpec,
-) *appsv1.Deployment {
+func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deployment {
 	deployment := fetchDeployment(context.Background(), objectKeyFor(resource))
 	expectManagedObject(deployment, resource)
 	Expect(deployment.Spec.Replicas).NotTo(BeNil())
-	Expect(*deployment.Spec.Replicas).To(Equal(spec.Replicas))
+	Expect(*deployment.Spec.Replicas).To(Equal(nginxReplicas(resource)))
 	Expect(deployment.Spec.Selector.MatchLabels).To(Equal(selectorLabelsFor(resource)))
 	Expect(deployment.Spec.Template.Labels).To(Equal(labelsFor(resource)))
 	Expect(deployment.Spec.Template.Annotations).To(HaveKeyWithValue(configHashAnnotation, configHash(nginxConfig(resource))))

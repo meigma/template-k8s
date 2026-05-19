@@ -51,9 +51,9 @@ The current scaffold is a Kubebuilder `go/v4` operator with one prototype API:
 - version: `v1alpha1`
 - kind: `NginxDeployment`
 
-The first prototype target is a minimal nginx deployment operator. The API and
-controller scaffold exist; reconcile logic is intentionally left for a later
-slice.
+The first prototype target is a minimal nginx deployment operator. Each
+`NginxDeployment` reconciles to an owned ConfigMap, Deployment, and ClusterIP
+Service, with Deployment readiness projected back into status.
 
 ## Moon Tasks
 
@@ -69,8 +69,10 @@ moon run root:lint-fix
 moon run root:lint-config
 moon run root:build
 moon run root:run
+moon run root:test-e2e
 ```
 
 These tasks are the Moon equivalents of Kubebuilder's generated `make manifests`
-and `make generate` targets plus the basic Go format, vet, lint, build, and
-local run targets. They use tools from the activated Proto-managed environment.
+and `make generate` targets plus the basic Go format, vet, lint, build, local
+run, and Kind-backed e2e smoke paths. They use tools from the activated
+Proto-managed environment.

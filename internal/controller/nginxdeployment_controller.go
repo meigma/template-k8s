@@ -33,6 +33,7 @@ const (
 	conditionAvailable          = "Available"
 	reasonDeploymentReady       = "DeploymentReady"
 	reasonDeploymentProgressing = "DeploymentProgressing"
+	reasonDeploymentStale       = "DeploymentStatusStale"
 )
 
 // NginxDeploymentReconciler reconciles a NginxDeployment object
@@ -124,56 +125,49 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 	}
 
 	_, err := controllerutil.CreateOrPatch(ctx, r.Client, deployment, func() error {
+		replicas := nginxReplicas(instance)
 		deployment.Labels = labelsFor(instance)
-		deployment.Spec = appsv1.DeploymentSpec{
-			Replicas: &instance.Spec.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: selectorLabelsFor(instance),
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labelsFor(instance),
-					Annotations: map[string]string{
-						configHashAnnotation: configHash(config),
+		deployment.Spec.Replicas = &replicas
+		deployment.Spec.Selector = &metav1.LabelSelector{
+			MatchLabels: selectorLabelsFor(instance),
+		}
+		deployment.Spec.Template.Labels = labelsFor(instance)
+		deployment.Spec.Template.Annotations = map[string]string{
+			configHashAnnotation: configHash(config),
+		}
+		deployment.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				Name:  nginxContainerName,
+				Image: nginxImage(instance),
+				Ports: []corev1.ContainerPort{
+					{
+						Name:          "http",
+						ContainerPort: nginxPort(instance),
+						Protocol:      corev1.ProtocolTCP,
 					},
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  nginxContainerName,
-							Image: nginxImage(instance),
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "http",
-									ContainerPort: nginxPort(instance),
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      nginxConfigVolumeName,
-									MountPath: "/etc/nginx/nginx.conf",
-									SubPath:   nginxConfigKey,
-									ReadOnly:  true,
-								},
-							},
-						},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      nginxConfigVolumeName,
+						MountPath: "/etc/nginx/nginx.conf",
+						SubPath:   nginxConfigKey,
+						ReadOnly:  true,
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: nginxConfigVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: instance.Name,
-									},
-									Items: []corev1.KeyToPath{
-										{
-											Key:  nginxConfigKey,
-											Path: nginxConfigKey,
-										},
-									},
-								},
+				},
+			},
+		}
+		deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+			{
+				Name: nginxConfigVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: instance.Name,
+						},
+						Items: []corev1.KeyToPath{
+							{
+								Key:  nginxConfigKey,
+								Path: nginxConfigKey,
 							},
 						},
 					},
@@ -182,7 +176,10 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 		}
 		return ctrl.SetControllerReference(instance, deployment, r.Scheme)
 	})
-	return deployment, err
+	if err != nil {
+		return nil, err
+	}
+	return deployment, r.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)
 }
 
 func (r *NginxDeploymentReconciler) reconcileService(
@@ -231,9 +228,22 @@ func availableCondition(
 	instance *examplev1alpha1.NginxDeployment,
 	deployment *appsv1.Deployment,
 ) metav1.Condition {
-	desired := instance.Spec.Replicas
+	desired := nginxReplicas(instance)
 	ready := deployment.Status.ReadyReplicas
-	if ready >= desired {
+	if deployment.Status.ObservedGeneration < deployment.Generation {
+		return metav1.Condition{
+			Type:               conditionAvailable,
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: instance.Generation,
+			Reason:             reasonDeploymentStale,
+			Message: fmt.Sprintf(
+				"Deployment status has observed generation %d, waiting for generation %d",
+				deployment.Status.ObservedGeneration,
+				deployment.Generation,
+			),
+		}
+	}
+	if desired == 0 || (ready >= desired && deploymentAvailable(deployment)) {
 		return metav1.Condition{
 			Type:               conditionAvailable,
 			Status:             metav1.ConditionTrue,
@@ -250,6 +260,15 @@ func availableCondition(
 		Reason:             reasonDeploymentProgressing,
 		Message:            fmt.Sprintf("Deployment has %d/%d ready replicas", ready, desired),
 	}
+}
+
+func deploymentAvailable(deployment *appsv1.Deployment) bool {
+	for _, condition := range deployment.Status.Conditions {
+		if condition.Type == appsv1.DeploymentAvailable && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func labelsFor(instance *examplev1alpha1.NginxDeployment) map[string]string {
@@ -285,6 +304,13 @@ func nginxImage(instance *examplev1alpha1.NginxDeployment) string {
 		return instance.Spec.Image
 	}
 	return defaultNginxImage
+}
+
+func nginxReplicas(instance *examplev1alpha1.NginxDeployment) int32 {
+	if instance.Spec.Replicas != nil {
+		return *instance.Spec.Replicas
+	}
+	return 1
 }
 
 func nginxPort(instance *examplev1alpha1.NginxDeployment) int32 {
