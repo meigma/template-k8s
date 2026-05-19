@@ -27,6 +27,13 @@ fileGroups:
   controllerGenTooling:
     - '.prototools'
     - '.moon/proto/controller-gen.toml'
+  chainsawSources:
+    - 'test/chainsaw/**/*.yaml'
+    - 'config/**/*.yaml'
+    - 'Dockerfile'
+  chainsawTooling:
+    - '.prototools'
+    - '.moon/proto/chainsaw.toml'
   lintConfig:
     - '.golangci.yml'
     - '.custom-gcl.yml'
@@ -192,15 +199,18 @@ tasks:
 
   test-e2e:
     script: |
-      set -e
+      set -euo pipefail
       kind_bin="${KIND:-kind}"
       command -v "$kind_bin" >/dev/null
       cluster="${KIND_CLUSTER:-template-k8s-test-e2e}"
+      manager_image="${IMG:-example.com/template-k8s:v0.0.1}"
       created=0
       cleanup() {
+        status="$?"
         if [ "$created" -eq 1 ]; then
           "$kind_bin" delete cluster --name "$cluster"
         fi
+        exit "$status"
       }
       trap cleanup EXIT
       if "$kind_bin" get clusters | grep -qx "$cluster"; then
@@ -209,9 +219,10 @@ tasks:
         created=1
         "$kind_bin" create cluster --name "$cluster"
       fi
-      set +e
-      KIND="$kind_bin" KIND_CLUSTER="$cluster" go test -tags=e2e ./test/e2e/ -v -ginkgo.v
-      exit "$?"
+      IMG="$manager_image" moon run root:docker-build
+      "$kind_bin" load docker-image "$manager_image" --name "$cluster"
+      KIND="$kind_bin" KIND_CLUSTER="$cluster" IMG="$manager_image" KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}" \
+        chainsaw test --config test/chainsaw/chainsaw-config.yaml test/chainsaw
     deps:
       - 'root:manifests'
       - 'root:generate'
@@ -219,8 +230,8 @@ tasks:
       - 'root:vet'
     inputs:
       - '@group(goSources)'
-      - 'config/**/*'
-      - 'Dockerfile'
+      - '@group(chainsawSources)'
+      - '@group(chainsawTooling)'
     options:
       cache: false
       runDepsInParallel: false

@@ -4,6 +4,7 @@ controller-gen = "=0.21.0"
 setup-envtest = "=0.24.1"
 kubectl = "=1.35.5"
 helm = "=3.21.0"
+chainsaw = "=0.2.15"
 
 [plugins.tools]
 kubebuilder = "file://.moon/proto/kubebuilder.toml"
@@ -12,3 +13,4 @@ controller-gen = "file://.moon/proto/controller-gen.toml"
 setup-envtest = "file://.moon/proto/setup-envtest.toml"
 kubectl = "file://.moon/proto/kubectl.toml"
 helm = "file://.moon/proto/helm.toml"
+chainsaw = "file://.moon/proto/chainsaw.toml"

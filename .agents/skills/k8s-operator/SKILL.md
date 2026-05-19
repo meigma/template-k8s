@@ -84,9 +84,9 @@ workflow, then tighten behavior from what the prototype exposes.
 
 - Moon is the task front door. Do not reintroduce generated Makefile paths into
   template tests or docs.
-- Keep one runnable smoke path that installs the CRD/controller, applies the
-  sample custom resource in a Restricted-enforced namespace, waits for the
-  parent condition, and verifies the owned workload/service exist.
+- Keep one runnable Chainsaw smoke path that installs the CRD/controller,
+  applies the sample custom resource in a Restricted-enforced namespace, waits
+  for the parent condition, and verifies the owned workload/service exist.
 - For Kind-backed tests with locally loaded images, ensure the Deployment uses
   the exact loaded tag and `imagePullPolicy: IfNotPresent` before readiness
   waits. Default `:latest` behavior can force remote pulls.
@@ -111,6 +111,6 @@ git diff --check
 When changing e2e wiring, also run:
 
 ```sh
-go test -tags=e2e ./test/e2e -run '^$'
+chainsaw version
 moon run root:test-e2e
 ```

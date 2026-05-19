@@ -1,0 +1,97 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: nginxdeployment-smoke
+spec:
+  description: Verify the template operator deploys and reconciles the sample NginxDeployment.
+  concurrent: false
+  failFast: true
+  catch:
+    - script:
+        timeout: 1m
+        workDir: ../../..
+        content: |
+          set +e
+          export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+          echo "== controller manager logs =="
+          kubectl logs -n template-k8s-system -l control-plane=controller-manager -c manager --tail=-1 --prefix
+          echo "== manager namespace events =="
+          kubectl get events -n template-k8s-system --sort-by=.lastTimestamp
+          echo "== sample namespace events =="
+          kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp
+          echo "== controller manager deployment =="
+          kubectl describe deployment -n template-k8s-system template-k8s-controller-manager
+          echo "== sample NginxDeployment =="
+          kubectl describe nginxdeployment -n "$NAMESPACE" nginx-sample
+          echo "== sample Deployment =="
+          kubectl describe deployment -n "$NAMESPACE" nginx-sample
+          exit 0
+  steps:
+    - name: deploy-controller
+      try:
+        - script:
+            timeout: 5m
+            workDir: ../../..
+            content: |
+              set -euo pipefail
+              export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+              kubectl create namespace template-k8s-system --dry-run=client -o yaml | kubectl apply -f -
+              kubectl label --overwrite namespace template-k8s-system pod-security.kubernetes.io/enforce=restricted
+              IMG="${IMG:-example.com/template-k8s:v0.0.1}" LOCAL_IMAGE=true moon run root:deploy
+        - wait:
+            apiVersion: apps/v1
+            kind: Deployment
+            namespace: template-k8s-system
+            name: template-k8s-controller-manager
+            timeout: 3m
+            for:
+              condition:
+                name: Available
+                value: 'true'
+        - assert:
+            resource:
+              apiVersion: v1
+              kind: Service
+              metadata:
+                namespace: template-k8s-system
+                name: template-k8s-controller-manager-metrics-service
+      cleanup:
+        - script:
+            timeout: 3m
+            workDir: ../../..
+            content: |
+              set +e
+              export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+              kubectl delete -n "$NAMESPACE" -f config/samples/example_v1alpha1_nginxdeployment.yaml --ignore-not-found=true || true
+              moon run root:undeploy || true
+              moon run root:uninstall || true
+              kubectl delete namespace template-k8s-system --ignore-not-found=true || true
+              exit 0
+    - name: reconcile-sample
+      try:
+        - apply:
+            file: ../../../config/samples/example_v1alpha1_nginxdeployment.yaml
+        - wait:
+            apiVersion: example.meigma.io/v1alpha1
+            kind: NginxDeployment
+            name: nginx-sample
+            timeout: 3m
+            for:
+              condition:
+                name: Available
+                value: 'true'
+        - wait:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: nginx-sample
+            timeout: 3m
+            for:
+              condition:
+                name: Available
+                value: 'true'
+        - assert:
+            resource:
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: nginx-sample

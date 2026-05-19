@@ -31,6 +31,7 @@ Current tools:
 - setup-envtest
 - kubectl
 - Helm
+- Chainsaw
 
 Quick smoke checks:
 
@@ -41,6 +42,7 @@ controller-gen --version
 setup-envtest version
 kubectl version --client=true
 helm version --short
+chainsaw version
 ```
 
 ## Starter Operator
@@ -79,5 +81,6 @@ moon run root:test-e2e
 
 These tasks are the Moon equivalents of Kubebuilder's generated `make manifests`
 and `make generate` targets plus the basic Go format, vet, lint, build, local
-run, and Kind-backed e2e smoke paths. They use tools from the activated
-Proto-managed environment.
+run, and Kind-backed e2e smoke paths. The e2e task builds the local manager
+image, loads it into Kind, and runs the Chainsaw smoke tests in `test/chainsaw/`.
+They use tools from the activated Proto-managed environment.
