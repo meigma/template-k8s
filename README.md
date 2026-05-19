@@ -71,6 +71,7 @@ moon run root:manifests
 moon run root:generate
 moon run root:fmt
 moon run root:vet
+moon run root:test
 moon run root:lint
 moon run root:lint-fix
 moon run root:lint-config
@@ -81,7 +82,7 @@ moon run root:test-e2e
 ```
 
 These tasks are the Moon equivalents of Kubebuilder's generated `make manifests`
-and `make generate` targets plus the basic Go format, vet, lint, build, local
-run, and Kind-backed e2e smoke paths. The e2e task builds the local manager
-image, loads it into Kind, and runs the Chainsaw smoke tests in `test/chainsaw/`.
-They use tools from the activated Proto-managed environment.
+and `make generate` targets plus the basic Go format, vet, envtest, lint,
+build, local run, and Kind-backed e2e smoke paths. The e2e task builds the local
+manager image, loads it into Kind, and runs the Chainsaw smoke tests in
+`test/chainsaw/`. They use tools from the activated Proto-managed environment.

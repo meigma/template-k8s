@@ -34,6 +34,9 @@ fileGroups:
   chainsawTooling:
     - '.prototools'
     - '.moon/proto/chainsaw.toml'
+  envtestTooling:
+    - '.prototools'
+    - '.moon/proto/setup-envtest.toml'
   lintConfig:
     - '.golangci.yml'
     - '.custom-gcl.yml'
@@ -79,6 +82,22 @@ tasks:
       - '@group(goSources)'
     options:
       cache: false
+
+  test:
+    script: |
+      set -euo pipefail
+      KUBEBUILDER_ASSETS="$(setup-envtest use 1.35.x -p path)" go test ./...
+    deps:
+      - 'root:manifests'
+      - 'root:generate'
+    inputs:
+      - '@group(goSources)'
+      - '@group(kubebuilderSources)'
+      - '@group(envtestTooling)'
+      - 'config/crd/bases/**/*'
+    options:
+      cache: false
+      runDepsInParallel: false
 
   lint-tool:
     command: 'bash -c ''mkdir -p bin && if [ -f .custom-gcl.yml ]; then rm -f bin/golangci-lint bin/golangci-lint-custom && golangci-lint custom --destination bin --name golangci-lint-custom && mv -f bin/golangci-lint-custom bin/golangci-lint; else ln -sf "$(command -v golangci-lint)" bin/golangci-lint; fi'''

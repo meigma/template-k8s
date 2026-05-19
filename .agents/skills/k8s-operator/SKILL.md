@@ -102,11 +102,16 @@ For ordinary controller/API changes, run:
 ```sh
 moon run root:generate
 moon run root:manifests
-go test ./...
+moon run root:test
 moon run root:lint
 moon ci --summary minimal
 git diff --check
 ```
+
+`root:test` wraps the envtest asset setup:
+`KUBEBUILDER_ASSETS="$(setup-envtest use 1.35.x -p path)" go test ./...`.
+Do not use plain `go test ./...` unless `KUBEBUILDER_ASSETS` or
+`../../bin/k8s` is already populated.
 
 When changing e2e wiring, also run:
 
