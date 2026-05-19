@@ -1,0 +1,79 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "template-k8s.fullname" . }}-manager-role
+  labels:
+    {{- include "template-k8s.labels" . | nindent 4 }}
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+rules:
+  - apiGroups:
+      - example.meigma.io
+    resources:
+      - nginxdeployments
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - example.meigma.io
+    resources:
+      - nginxdeployments/status
+    verbs:
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+  {{- if and .Values.metrics.enabled .Values.metrics.secure }}
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "template-k8s.fullname" . }}-manager-rolebinding
+  labels:
+    {{- include "template-k8s.labels" . | nindent 4 }}
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "template-k8s.fullname" . }}-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "template-k8s.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

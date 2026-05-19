@@ -1,0 +1,11 @@
+apiVersion: v2
+name: template-k8s
+description: Helm chart for the template-k8s operator.
+type: application
+version: 0.1.0
+appVersion: "v0.1.0"
+home: https://github.com/meigma/template-k8s
+sources:
+  - https://github.com/meigma/template-k8s
+maintainers:
+  - name: meigma
