@@ -33,10 +33,71 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 
 {{- define "template-k8s.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{- default (printf "%s-controller-manager" (include "template-k8s.fullname" .)) .Values.serviceAccount.name -}}
+{{- default (include "template-k8s.controllerManagerName" .) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "template-k8s.suffixedName" -}}
+{{- $context := .context -}}
+{{- $suffix := .suffix -}}
+{{- $maxBaseLength := int (sub 62 (len $suffix)) -}}
+{{- if lt $maxBaseLength 1 -}}
+{{- fail (printf "suffix %q leaves no room for a resource name prefix" $suffix) -}}
+{{- end -}}
+{{- if and $context.Values.fullnameOverride (gt (len $context.Values.fullnameOverride) $maxBaseLength) -}}
+{{- fail (printf "fullnameOverride must be %d characters or fewer when suffixed with %q" $maxBaseLength $suffix) -}}
+{{- end -}}
+{{- printf "%s-%s" ((include "template-k8s.fullname" $context) | trunc $maxBaseLength | trimSuffix "-") $suffix -}}
+{{- end -}}
+
+{{- define "template-k8s.controllerManagerName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "controller-manager") -}}
+{{- end -}}
+
+{{- define "template-k8s.managerRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "manager-role") -}}
+{{- end -}}
+
+{{- define "template-k8s.managerRoleBindingName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "manager-rolebinding") -}}
+{{- end -}}
+
+{{- define "template-k8s.leaderElectionRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "leader-election-role") -}}
+{{- end -}}
+
+{{- define "template-k8s.leaderElectionRoleBindingName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "leader-election-rolebinding") -}}
+{{- end -}}
+
+{{- define "template-k8s.metricsAuthRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "metrics-auth-role") -}}
+{{- end -}}
+
+{{- define "template-k8s.metricsAuthRoleBindingName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "metrics-auth-rolebinding") -}}
+{{- end -}}
+
+{{- define "template-k8s.metricsReaderRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "metrics-reader") -}}
+{{- end -}}
+
+{{- define "template-k8s.metricsServiceName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "controller-manager-metrics-service") -}}
+{{- end -}}
+
+{{- define "template-k8s.nginxDeploymentAdminRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "nginxdeployment-admin-role") -}}
+{{- end -}}
+
+{{- define "template-k8s.nginxDeploymentEditorRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "nginxdeployment-editor-role") -}}
+{{- end -}}
+
+{{- define "template-k8s.nginxDeploymentViewerRoleName" -}}
+{{- include "template-k8s.suffixedName" (dict "context" . "suffix" "nginxdeployment-viewer-role") -}}
 {{- end -}}
 
 {{- define "template-k8s.image" -}}

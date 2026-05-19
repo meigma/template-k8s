@@ -27,6 +27,11 @@ fileGroups:
   controllerGenTooling:
     - '.prototools'
     - '.moon/proto/controller-gen.toml'
+  chartSources:
+    - 'charts/template-k8s/**/*'
+  helmTooling:
+    - '.prototools'
+    - '.moon/proto/helm.toml'
   chainsawSources:
     - 'test/chainsaw/**/*.yaml'
     - 'config/**/*.yaml'
@@ -48,13 +53,17 @@ workspace:
 
 tasks:
   manifests:
-    command: 'controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
+    script: |
+      set -euo pipefail
+      controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+      controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
     inputs:
       - '@group(kubebuilderSources)'
       - '@group(controllerGenTooling)'
     outputs:
       - 'config/crd/bases/**/*'
       - 'config/rbac/role.yaml'
+      - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
 
@@ -87,6 +96,7 @@ tasks:
       set -euo pipefail
       KUBEBUILDER_ASSETS="$(setup-envtest use 1.35.x -p path)" go test ./...
     deps:
+      - 'root:chart-validate'
       - 'root:manifests'
       - 'root:generate'
     inputs:
@@ -94,6 +104,42 @@ tasks:
       - '@group(kubebuilderSources)'
       - '@group(envtestTooling)'
       - 'config/crd/bases/**/*'
+    options:
+      cache: false
+      runDepsInParallel: false
+
+  chart-validate:
+    script: |
+      set -euo pipefail
+      chart="charts/template-k8s"
+      package_dir="$(mktemp -d)"
+      trap 'rm -rf "$package_dir"' EXIT
+
+      python3 -m json.tool "$chart/values.schema.json" >/dev/null
+      helm lint "$chart"
+      helm template template-k8s "$chart" --namespace template-k8s-system --include-crds >/dev/null
+      helm install template-k8s "$chart" --namespace template-k8s-system --dry-run=client --server-side=false >/dev/null
+      helm package "$chart" --destination "$package_dir" >/dev/null
+    deps:
+      - 'root:manifests'
+    inputs:
+      - '@group(chartSources)'
+      - '@group(helmTooling)'
+      - '@group(kubebuilderSources)'
+    options:
+      cache: false
+      runDepsInParallel: false
+
+  generated-check:
+    script: |
+      set -euo pipefail
+      controller-gen object paths="./..."
+      controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+      controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
+      git diff --exit-code -- api config/crd/bases config/rbac/role.yaml charts/template-k8s/crds
+    inputs:
+      - '@group(kubebuilderSources)'
+      - '@group(controllerGenTooling)'
     options:
       cache: false
       runDepsInParallel: false

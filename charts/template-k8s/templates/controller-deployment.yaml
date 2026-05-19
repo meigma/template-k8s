@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "template-k8s.fullname" . }}-controller-manager
+  name: {{ include "template-k8s.controllerManagerName" . }}
   labels:
     {{- include "template-k8s.labels" . | nindent 4 }}
     control-plane: controller-manager
@@ -48,9 +48,9 @@ spec:
           image: {{ include "template-k8s.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - {{ printf "--health-probe-bind-address=%s" .Values.manager.healthProbe.bindAddress | quote }}
+            - {{ printf "--health-probe-bind-address=:%d" (int .Values.manager.healthProbe.port) | quote }}
             {{- if .Values.metrics.enabled }}
-            - {{ printf "--metrics-bind-address=%s" .Values.metrics.bindAddress | quote }}
+            - {{ printf "--metrics-bind-address=:%d" (int .Values.metrics.port) | quote }}
             - {{ printf "--metrics-secure=%t" .Values.metrics.secure | quote }}
             {{- else }}
             - "--metrics-bind-address=0"

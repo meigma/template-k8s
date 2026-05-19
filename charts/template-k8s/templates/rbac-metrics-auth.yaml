@@ -1,8 +1,8 @@
-{{- if and .Values.rbac.create .Values.leaderElection.enabled }}
+{{- if and .Values.rbac.create .Values.metrics.enabled .Values.metrics.secure }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: {{ include "template-k8s.leaderElectionRoleName" . }}
+  name: {{ include "template-k8s.metricsAuthRoleName" . }}
   labels:
     {{- include "template-k8s.labels" . | nindent 4 }}
     {{- with .Values.commonLabels }}
@@ -10,41 +10,22 @@ metadata:
     {{- end }}
 rules:
   - apiGroups:
-      - ""
+      - authentication.k8s.io
     resources:
-      - configmaps
+      - tokenreviews
     verbs:
       - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
   - apiGroups:
-      - coordination.k8s.io
+      - authorization.k8s.io
     resources:
-      - leases
+      - subjectaccessreviews
     verbs:
       - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: {{ include "template-k8s.leaderElectionRoleBindingName" . }}
+  name: {{ include "template-k8s.metricsAuthRoleBindingName" . }}
   labels:
     {{- include "template-k8s.labels" . | nindent 4 }}
     {{- with .Values.commonLabels }}
@@ -52,8 +33,8 @@ metadata:
     {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ include "template-k8s.leaderElectionRoleName" . }}
+  kind: ClusterRole
+  name: {{ include "template-k8s.metricsAuthRoleName" . }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "template-k8s.serviceAccountName" . }}

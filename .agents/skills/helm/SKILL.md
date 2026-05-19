@@ -118,7 +118,7 @@ Run the smallest useful validation set before handing off chart changes:
 helm dependency build <chart>
 helm lint <chart>
 helm template <release> <chart> --namespace <namespace> --debug
-helm upgrade --install <release> <chart> --namespace <namespace> --dry-run
+helm install <release> <chart> --namespace <namespace> --dry-run=client --server-side=false
 helm package <chart>
 ```
 

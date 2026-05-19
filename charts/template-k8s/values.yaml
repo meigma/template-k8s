@@ -20,6 +20,8 @@ serviceAccount:
 
 rbac:
   create: true
+  customResourceRoles:
+    create: true
   metricsReader:
     create: true
 
@@ -31,13 +33,11 @@ manager:
   logLevel: info
   enableHTTP2: false
   healthProbe:
-    bindAddress: ":8081"
     port: 8081
   extraArgs: []
 
 metrics:
   enabled: true
-  bindAddress: ":8443"
   port: 8443
   secure: true
   service:

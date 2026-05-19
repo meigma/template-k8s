@@ -33,10 +33,12 @@
       "type": "array"
     },
     "nameOverride": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 63
     },
     "fullnameOverride": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 63
     },
     "commonLabels": {
       "$ref": "#/definitions/stringMap"
@@ -53,7 +55,8 @@
           "type": "boolean"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 63
         },
         "annotations": {
           "$ref": "#/definitions/stringMap"
@@ -63,10 +66,20 @@
     "rbac": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["create", "metricsReader"],
+      "required": ["create", "customResourceRoles", "metricsReader"],
       "properties": {
         "create": {
           "type": "boolean"
+        },
+        "customResourceRoles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["create"],
+          "properties": {
+            "create": {
+              "type": "boolean"
+            }
+          }
         },
         "metricsReader": {
           "type": "object",
@@ -109,12 +122,8 @@
         "healthProbe": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["bindAddress", "port"],
+          "required": ["port"],
           "properties": {
-            "bindAddress": {
-              "type": "string",
-              "minLength": 1
-            },
             "port": {
               "type": "integer",
               "minimum": 1,
@@ -133,14 +142,10 @@
     "metrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "bindAddress", "port", "secure", "service", "tls"],
+      "required": ["enabled", "port", "secure", "service", "tls"],
       "properties": {
         "enabled": {
           "type": "boolean"
-        },
-        "bindAddress": {
-          "type": "string",
-          "minLength": 1
         },
         "port": {
           "type": "integer",

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "template-k8s.fullname" . }}-controller-manager-metrics-service
+  name: {{ include "template-k8s.metricsServiceName" . }}
   labels:
     {{- include "template-k8s.labels" . | nindent 4 }}
     control-plane: controller-manager
