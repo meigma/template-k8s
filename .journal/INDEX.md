@@ -7,3 +7,4 @@
 | 003 | 2026-05-19 | Gate release dry runs to release PRs | complete | Ported the `template-go` release dry-run gating pattern and merged it via PR #10. |
 | 004 | 2026-05-19 | Manager CLI and startup refactor | complete | Replaced generated flag/zap startup with Kong plus `slog`, streamlined manager wiring, and merged it via PR #11. |
 | 005 | 2026-05-19 | Operator guidance and repo-local tooling refresh | complete | Refreshed agent/operator guidance, tracked repo-local skills, removed stale artifacts, and simplified lint tooling via PR #12. |
+| 006 | 2026-05-19 | Evaluate removing Kustomize | complete | Replaced Kustomize with a centralized Helm chart, removed `config/`, and merged it via PR #13. |

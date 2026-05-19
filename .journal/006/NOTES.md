@@ -46,3 +46,7 @@ Validation passed: `go build -o /tmp/template-k8s-manager-check ./cmd`, `gorelea
 Implemented the Helm-only cleanup in `087ed84` (`refactor(chart): remove kustomize config tree`).
 Changes: deleted the checked-in `config/` tree, moved the sample custom resource to `test/chainsaw/fixtures`, pointed envtest at `charts/template-k8s/crds`, made Moon generate/diff only chart CRDs plus API deepcopy output, and changed the chart RBAC drift test to generate controller-gen RBAC into a temp directory instead of reading `config/rbac/role.yaml`.
 Validation passed: stale reference scan for `config/`, `kustomize`, `Kustomize`, `kubectl apply -k`, and `kubectl delete ... -k`; `moon run root:manifests`; `go test ./test/chart -run TestManagerRBACMatchesControllerGen -count=1`; `moon run root:generated-check`; `moon run root:chart-validate`; `moon ci --summary minimal`; `git diff --check`; and `moon run root:test-e2e`.
+
+## 2026-05-19 16:25 — Close
+PR #13 (`feat(chart): replace kustomize with helm`) was squash-merged to `master` as `2d6bd29`. Local `master` was fast-forwarded, the remote `feat/helm-skill` branch was deleted, and the Worktrunk worktree was removed.
+Closeout artifacts written: `.journal/006/SUMMARY.md`, updated `.journal/INDEX.md`, updated `.journal/TECH_NOTES.md`, and this final note. Remaining follow-up: decide whether and how to publish the Helm chart, likely as a packaged/OCI chart, in a future release workflow slice.
