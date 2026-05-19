@@ -1,6 +1,6 @@
-<!-- BEGIN ai-protocol -->
 # Agent Instructions
 
+<!-- BEGIN ai-protocol -->
 This repository's operating protocol lives in `.session.md`.
 
 Before doing substantive work, read `.session.md` in full and follow it. It
@@ -11,3 +11,88 @@ expectations.
 If `.session.md` is missing, stop and tell the user the session protocol is not
 installed correctly.
 <!-- END ai-protocol -->
+
+## Repository Overview
+
+This is a Go Kubernetes operator built with Kubebuilder and
+controller-runtime. API types live in `api/`, reconciliation logic lives in
+`internal/controller/`, manager startup lives in `cmd/`, generated manifests
+live in `config/`, and e2e smoke tests live in `test/chainsaw/`.
+
+The current API is `example.meigma.io/v1alpha1` `NginxDeployment`. It owns a
+same-named ConfigMap, Deployment, and ClusterIP Service, and projects fresh
+Deployment readiness into status conditions.
+
+## Local Skills
+
+Load `.agents/skills/k8s-operator/SKILL.md` before changing APIs,
+controllers, RBAC markers, envtest coverage, Chainsaw tests, or operator task
+wiring. That skill captures the local operator practices this repository
+expects agents to follow.
+
+## Development Workflow
+
+Moon is the task front door. Do not add or restore Makefile-driven workflows.
+If upstream Kubebuilder docs say to run `make`, translate the step to the
+matching Moon task.
+
+Common tasks:
+
+```sh
+moon run root:generate
+moon run root:manifests
+moon run root:test
+moon run root:lint
+moon run root:chainsaw-lint
+moon run root:test-e2e
+moon ci --summary minimal
+git diff --check
+```
+
+Use `root:test` for Go tests because it sets `KUBEBUILDER_ASSETS` through
+`setup-envtest`. Do not rely on plain `go test ./...` unless envtest assets are
+already configured.
+
+## Manager Startup
+
+Manager configuration uses Kong in `cmd/options.go`. Add new command-line
+flags by extending `managerOptions`, and cover parser/default behavior in
+`cmd/options_test.go`.
+
+Logging is built from Go `slog` handlers and bridged into controller-runtime's
+`logr` logger. Preserve the existing `--log-format=json|text` and
+`--log-level=debug|info|warn|error` behavior when changing startup code.
+
+Keep health and readiness checks registered through controller-runtime in
+`cmd/setup.go`. Keep metrics/webhook TLS and HTTP/2 behavior in `cmd/manager.go`
+unless the operator's runtime contract intentionally changes.
+
+## Operator Practices
+
+Use controller-runtime ownership and watches deliberately:
+
+- owned children should have controller references and `.Owns(...)` watches
+- status should use `metav1.Condition`
+- parent availability must not trust stale child status
+- inline data copied into Kubernetes objects must be bounded or moved behind a
+  reference
+- RBAC markers should match the reconciler's actual reads and writes
+
+Generated files are part of the source tree, but should be produced by tools:
+
+- run `moon run root:generate` after API type changes
+- run `moon run root:manifests` after API marker, RBAC, webhook, or manifest
+  changes
+- do not hand-edit `zz_generated.deepcopy.go`, generated CRDs, or generated
+  RBAC except to diagnose generator output
+
+## Testing
+
+Keep reconciler behavior in envtest. Cover owner references, labels/selectors,
+default handling, status freshness, restricted-compatible pod settings, rollout
+hashes, and API validation near the controller code.
+
+Use Chainsaw for the Kind-backed smoke path. Keep e2e coverage focused on the
+installed CRD/controller, the sample custom resource, the parent condition, and
+the owned workload/service. Do not reintroduce the old Go e2e harness unless
+there is a concrete reason Chainsaw cannot cover the workflow.
