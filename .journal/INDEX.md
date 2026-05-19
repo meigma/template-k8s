@@ -6,3 +6,4 @@
 | 002 | 2026-05-19 | Chainsaw e2e migration | complete | Replaced the Go e2e harness with a pinned Chainsaw smoke test and merged it via PR #9. |
 | 003 | 2026-05-19 | Gate release dry runs to release PRs | complete | Ported the `template-go` release dry-run gating pattern and merged it via PR #10. |
 | 004 | 2026-05-19 | Manager CLI and startup refactor | complete | Replaced generated flag/zap startup with Kong plus `slog`, streamlined manager wiring, and merged it via PR #11. |
+| 005 | 2026-05-19 | Operator guidance and repo-local tooling refresh | complete | Refreshed agent/operator guidance, tracked repo-local skills, removed stale artifacts, and simplified lint tooling via PR #12. |
