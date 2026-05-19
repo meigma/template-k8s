@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,7 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -188,7 +191,72 @@ var _ = Describe("NginxDeployment Controller", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(apierrors.IsInvalid(err)).To(BeTrue())
 	})
+
+	It("reconciles through manager watches for parent and owned child events", func() {
+		startControllerManager()
+
+		spec := nginxSpec(1, "nginx:stable", 8080, "events {}\nhttp { server { listen 8080; } }\n")
+		resource := createNginxDeployment(ctx, "manager-watches", spec)
+		key := objectKeyFor(resource)
+
+		Eventually(func() error {
+			configMap := &corev1.ConfigMap{}
+			if err := k8sClient.Get(ctx, key, configMap); err != nil {
+				return err
+			}
+			if got := configMap.Data[nginxConfigKey]; got != spec.Config {
+				return fmt.Errorf("expected ConfigMap data to be reconciled to %q, got %q", spec.Config, got)
+			}
+			return nil
+		}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, &appsv1.Deployment{})
+		}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, &corev1.Service{})
+		}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
+		expectDeployment(resource)
+		expectService(resource, spec.Port)
+
+		configMap := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, key, configMap)).To(Succeed())
+		configMap.Data[nginxConfigKey] = "drifted config"
+		Expect(k8sClient.Update(ctx, configMap)).To(Succeed())
+
+		Eventually(func() string {
+			current := &corev1.ConfigMap{}
+			if err := k8sClient.Get(ctx, key, current); err != nil {
+				return err.Error()
+			}
+			return current.Data[nginxConfigKey]
+		}, 10*time.Second, 100*time.Millisecond).Should(Equal(spec.Config))
+	})
 })
+
+func startControllerManager() {
+	testCtx, stop := context.WithCancel(context.Background())
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:                 k8sClient.Scheme(),
+		Metrics:                metricsserver.Options{BindAddress: "0"},
+		HealthProbeBindAddress: "0",
+		PprofBindAddress:       "0",
+	})
+	Expect(err).NotTo(HaveOccurred())
+	Expect((&NginxDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)).To(Succeed())
+
+	managerDone := make(chan error, 1)
+	go func() {
+		managerDone <- mgr.Start(testCtx)
+	}()
+	Consistently(managerDone, 250*time.Millisecond, 50*time.Millisecond).ShouldNot(Receive())
+	DeferCleanup(func() {
+		stop()
+		Eventually(managerDone, 10*time.Second, 100*time.Millisecond).Should(Receive())
+	})
+}
 
 func nginxSpec(replicas int32, image string, port int32, config string) examplev1alpha1.NginxDeploymentSpec {
 	return examplev1alpha1.NginxDeploymentSpec{

@@ -9,6 +9,27 @@ Use this skill to keep operator work prototype-friendly but correct enough to
 teach the right patterns. Prefer the smallest working slice that proves the
 workflow, then tighten behavior from what the prototype exposes.
 
+## Testing Boundary
+
+Keep envtest and Chainsaw from growing into two copies of the same suite.
+
+Use envtest for controller/API behavior: reconciler output, CRD validation,
+default handling, status transitions, owner references, selectors, rollout
+hashes, event routing, predicates, field indexes, and watch wiring. Direct
+`Reconcile` calls are fine for most behavior cases, but each controller should
+also keep a small manager-backed envtest case that proves `SetupWithManager`
+actually wires parent and owned-child events.
+
+Use Chainsaw for Kind-backed install/runtime smoke: chart install or upgrade
+wiring, manager readiness, RBAC/auth that only fails in-cluster, metrics
+exposure, one representative custom resource, and the owned workload becoming
+available.
+
+Do not port the envtest matrix into Chainsaw. Add Chainsaw coverage only when
+the assertion requires the packaged operator, Kubernetes workload controllers,
+cluster networking, multiple deployed controller instances, or another real
+cluster behavior envtest cannot model.
+
 ## Best Practices From Mature Operators
 
 These patterns are worth carrying into this template as examples and decision
