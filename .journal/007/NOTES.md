@@ -18,3 +18,8 @@ Conclusion: Keep both, but keep their responsibilities separate. Envtest should 
 Goal for the session: Make the envtest/Chainsaw split structural for the template and add manager-backed envtest coverage ahead of future controller complexity.
 Current state of the world: Work is on `feat/envtest-test-boundary` at `ae076cd`. `internal/controller/nginxdeployment_controller_test.go` now starts a controller-runtime manager in envtest, proves parent creation reconciles through `.For(...)`, and proves an owned ConfigMap drift is corrected through `.Owns(...)`. `AGENTS.md` and `.agents/skills/k8s-operator/SKILL.md` now explicitly assign controller/API behavior to envtest and install/runtime smoke to Chainsaw.
 Verification: `moon run root:test`, `moon run root:lint`, and `git diff --check` passed in the feature worktree.
+
+## 2026-05-19 16:52 — PR opened and CI verified
+Goal for the session: Open the test-boundary implementation PR and verify remote CI.
+Current state of the world: PR #15 is open at https://github.com/meigma/template-k8s/pull/15 with title `test(controller): prove manager watch wiring`; head is `feat/envtest-test-boundary` at `ae076cd4dec02b12d7b099cebbba1d2c2ce43fd2`.
+Verification: `gh pr checks 15 --watch --fail-fast` completed successfully. Final PR status is mergeable/clean with `ci` and `Kusari Inspector` successful; binary and container release dry-run checks are skipped by the existing release-branch gating policy.
