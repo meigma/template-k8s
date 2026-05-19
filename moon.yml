@@ -1,0 +1,139 @@
+language: 'go'
+layer: 'application'
+stack: 'backend'
+
+project:
+  title: 'template-k8s'
+  description: 'Meigma Kubernetes operator repository template.'
+  owner: 'meigma'
+  maintainers:
+    - 'meigma'
+
+fileGroups:
+  goSources:
+    - 'api/**/*.go'
+    - 'cmd/**/*.go'
+    - 'internal/**/*.go'
+    - 'test/**/*.go'
+    - 'go.mod'
+    - 'go.sum'
+  kubebuilderSources:
+    - 'api/**/*.go'
+    - 'cmd/**/*.go'
+    - 'internal/**/*.go'
+    - 'PROJECT'
+    - 'go.mod'
+    - 'go.sum'
+  controllerGenTooling:
+    - '.prototools'
+    - '.moon/proto/controller-gen.toml'
+  lintConfig:
+    - '.golangci.yml'
+    - '.custom-gcl.yml'
+    - '.prototools'
+    - '.moon/proto/golangci-lint.toml'
+
+workspace:
+  inheritedTasks:
+    include: []
+
+tasks:
+  manifests:
+    command: 'controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
+    inputs:
+      - '@group(kubebuilderSources)'
+      - '@group(controllerGenTooling)'
+    outputs:
+      - 'config/crd/bases/**/*'
+      - 'config/rbac/role.yaml'
+    options:
+      cache: false
+
+  generate:
+    command: 'controller-gen object paths="./..."'
+    inputs:
+      - '@group(kubebuilderSources)'
+      - '@group(controllerGenTooling)'
+    outputs:
+      - 'api/**/zz_generated.deepcopy.go'
+    options:
+      cache: false
+
+  fmt:
+    command: 'go fmt ./...'
+    inputs:
+      - '@group(goSources)'
+    options:
+      cache: false
+
+  vet:
+    command: 'go vet ./...'
+    inputs:
+      - '@group(goSources)'
+    options:
+      cache: false
+
+  lint-tool:
+    command: 'bash -c ''mkdir -p bin && if [ -f .custom-gcl.yml ]; then rm -f bin/golangci-lint bin/golangci-lint-custom && golangci-lint custom --destination bin --name golangci-lint-custom && mv -f bin/golangci-lint-custom bin/golangci-lint; else ln -sf "$(command -v golangci-lint)" bin/golangci-lint; fi'''
+    inputs:
+      - '@group(lintConfig)'
+    outputs:
+      - 'bin/golangci-lint'
+
+  lint:
+    command: 'bin/golangci-lint run'
+    deps:
+      - 'root:lint-tool'
+    inputs:
+      - '@group(goSources)'
+      - '@group(lintConfig)'
+    options:
+      cache: false
+
+  lint-fix:
+    command: 'bin/golangci-lint run --fix'
+    deps:
+      - 'root:lint-tool'
+    inputs:
+      - '@group(goSources)'
+      - '@group(lintConfig)'
+    options:
+      cache: false
+      runInCI: false
+
+  lint-config:
+    command: 'bin/golangci-lint config verify'
+    deps:
+      - 'root:lint-tool'
+    inputs:
+      - '@group(lintConfig)'
+    options:
+      cache: false
+
+  build:
+    command: 'go build -o bin/manager cmd/main.go'
+    deps:
+      - 'root:manifests'
+      - 'root:generate'
+      - 'root:fmt'
+      - 'root:vet'
+    inputs:
+      - '@group(goSources)'
+    outputs:
+      - 'bin/manager'
+    options:
+      runDepsInParallel: false
+
+  run:
+    command: 'go run ./cmd/main.go'
+    deps:
+      - 'root:manifests'
+      - 'root:generate'
+      - 'root:fmt'
+      - 'root:vet'
+    inputs:
+      - '@group(goSources)'
+    options:
+      cache: false
+      runDepsInParallel: false
+      runInCI: false

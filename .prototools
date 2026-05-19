@@ -1,0 +1,14 @@
+kubebuilder = "=4.14.0"
+golangci-lint = "=2.11.4"
+controller-gen = "=0.21.0"
+setup-envtest = "=0.24.1"
+kubectl = "=1.35.5"
+helm = "=3.21.0"
+
+[plugins.tools]
+kubebuilder = "file://.moon/proto/kubebuilder.toml"
+golangci-lint = "file://.moon/proto/golangci-lint.toml"
+controller-gen = "file://.moon/proto/controller-gen.toml"
+setup-envtest = "file://.moon/proto/setup-envtest.toml"
+kubectl = "file://.moon/proto/kubectl.toml"
+helm = "file://.moon/proto/helm.toml"
