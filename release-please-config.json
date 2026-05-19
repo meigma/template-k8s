@@ -10,7 +10,13 @@
   "packages": {
     ".": {
       "package-name": "template-k8s",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "charts/template-k8s/Chart.yaml"
+        }
+      ]
     }
   },
   "changelog-sections": [

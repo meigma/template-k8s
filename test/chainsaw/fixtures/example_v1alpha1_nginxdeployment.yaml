@@ -3,7 +3,7 @@ kind: NginxDeployment
 metadata:
   labels:
     app.kubernetes.io/name: template-k8s
-    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/managed-by: chainsaw
   name: nginx-sample
 spec:
   replicas: 1

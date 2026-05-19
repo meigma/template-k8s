@@ -51,7 +51,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "template-k8s", "crds")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -84,8 +84,8 @@ var _ = AfterSuite(func() {
 // Makefile targets, the 'BinaryAssetsDirectory' must be explicitly configured.
 //
 // This function streamlines the process by finding the required binaries, similar to
-// setting the 'KUBEBUILDER_ASSETS' environment variable. To ensure the binaries are
-// properly set up, run 'make setup-envtest' beforehand.
+// setting the 'KUBEBUILDER_ASSETS' environment variable. Prefer running tests through
+// `moon run root:test`, which configures the envtest assets for this repository.
 func getFirstFoundEnvTestBinaryDir() string {
 	basePath := filepath.Join("..", "..", "bin", "k8s")
 	entries, err := os.ReadDir(basePath)

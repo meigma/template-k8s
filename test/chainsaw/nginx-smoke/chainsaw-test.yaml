@@ -161,7 +161,7 @@ spec:
             content: |
               set +e
               export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
-              kubectl delete -n "$NAMESPACE" -f config/samples/example_v1alpha1_nginxdeployment.yaml --ignore-not-found=true || true
+              kubectl delete -n "$NAMESPACE" -f test/chainsaw/fixtures/example_v1alpha1_nginxdeployment.yaml --ignore-not-found=true || true
               kubectl delete pod curl-metrics -n template-k8s-system --ignore-not-found=true || true
               kubectl delete clusterrolebinding template-k8s-metrics-smoke --ignore-not-found=true || true
               kubectl delete serviceaccount metrics-smoke -n template-k8s-system --ignore-not-found=true || true
@@ -172,7 +172,7 @@ spec:
     - name: reconcile-sample
       try:
         - apply:
-            file: ../../../config/samples/example_v1alpha1_nginxdeployment.yaml
+            file: ../fixtures/example_v1alpha1_nginxdeployment.yaml
         - wait:
             apiVersion: example.meigma.io/v1alpha1
             kind: NginxDeployment

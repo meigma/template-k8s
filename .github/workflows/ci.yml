@@ -63,3 +63,12 @@ jobs:
 
       - name: Run Moon CI
         run: moon ci --summary minimal
+
+      - name: Verify generated artifacts
+        run: moon run root:generated-check
+
+      - name: Validate Helm chart
+        run: moon run root:chart-validate
+
+      - name: Check whitespace
+        run: git diff --check

@@ -1,0 +1,89 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/meigma/template-k8s
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+commonLabels: {}
+commonAnnotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+  customResourceRoles:
+    create: true
+  metricsReader:
+    create: true
+
+leaderElection:
+  enabled: true
+
+manager:
+  logFormat: json
+  logLevel: info
+  enableHTTP2: false
+  healthProbe:
+    port: 8081
+  extraArgs: []
+
+metrics:
+  enabled: true
+  port: 8443
+  secure: true
+  service:
+    create: true
+    port: 8443
+    annotations: {}
+  tls:
+    secretName: ""
+    certPath: /certs/metrics
+    certName: tls.crt
+    keyName: tls.key
+
+webhook:
+  tls:
+    secretName: ""
+    certPath: /certs/webhook
+    certName: tls.crt
+    keyName: tls.key
+
+deploymentAnnotations: {}
+podLabels: {}
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+extraVolumes: []
+extraVolumeMounts: []
