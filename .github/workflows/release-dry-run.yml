@@ -1,6 +1,10 @@
 # This workflow rehearses the release paths without uploading GitHub release
 # assets or publishing container images. It is intended for release PRs and
 # manual checks before changing release automation.
+#
+# Keep the pull_request trigger broad so required check contexts still report
+# on normal PRs. The jobs intentionally skip unless the PR head branch is a
+# Release Please branch, which avoids spending runner time on routine changes.
 
 name: Release Dry Run
 
@@ -15,6 +19,7 @@ permissions: {}
 jobs:
   binary-release-dry-run:
     name: Binary Release Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -126,6 +131,7 @@ jobs:
 
   container-image-dry-run:
     name: Container Image Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
