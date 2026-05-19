@@ -12,3 +12,4 @@
 - Release Dry Run keeps a broad `pull_request` trigger so required check contexts still report on ordinary PRs, but the binary/container dry-run jobs intentionally skip unless the run is manual or the PR head branch starts with `release-please--`.
 - Release Please updates `charts/template-k8s/Chart.yaml`, but Helm chart publication is not wired yet; release workflows still publish binaries and the container image.
 - Repo-local Kubernetes operator lessons live in `.agents/skills/k8s-operator/SKILL.md`.
+- Test layering is intentional: envtest owns the controller/API behavior matrix, including manager-backed watch/predicate/index coverage; Chainsaw owns Kind-backed chart install/runtime smoke and should not duplicate envtest edge cases.

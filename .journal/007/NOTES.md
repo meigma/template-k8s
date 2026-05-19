@@ -13,3 +13,8 @@ Plan: Wait for the user's actual implementation or review request, then scope th
 Goal for the session: Evaluate whether keeping envtest has practical value when Kind-backed Chainsaw e2e tests already exist.
 Current state of the world: Envtest currently covers reconciler invariants such as child ownership, spec updates, default config, status freshness, scale-to-zero, and CRD validation edge cases. Chainsaw currently proves Helm/Kind installability, manager readiness, authenticated metrics, one sample `NginxDeployment` reaching `Available`, the owned Deployment becoming available, and the Service existing.
 Conclusion: Keep both, but keep their responsibilities separate. Envtest should remain the fast behavior matrix for controller/API edge cases; Chainsaw should stay a small deployment and integration smoke path.
+
+## 2026-05-19 16:43 — Encode test boundary
+Goal for the session: Make the envtest/Chainsaw split structural for the template and add manager-backed envtest coverage ahead of future controller complexity.
+Current state of the world: Work is on `feat/envtest-test-boundary` at `ae076cd`. `internal/controller/nginxdeployment_controller_test.go` now starts a controller-runtime manager in envtest, proves parent creation reconciles through `.For(...)`, and proves an owned ConfigMap drift is corrected through `.Owns(...)`. `AGENTS.md` and `.agents/skills/k8s-operator/SKILL.md` now explicitly assign controller/API behavior to envtest and install/runtime smoke to Chainsaw.
+Verification: `moon run root:test`, `moon run root:lint`, and `git diff --check` passed in the feature worktree.
