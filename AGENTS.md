@@ -16,8 +16,8 @@ installed correctly.
 
 This is a Go Kubernetes operator built with Kubebuilder and
 controller-runtime. API types live in `api/`, reconciliation logic lives in
-`internal/controller/`, manager startup lives in `cmd/`, generated manifests
-live in `config/`, and e2e smoke tests live in `test/chainsaw/`.
+`internal/controller/`, manager startup lives in `cmd/`, the Helm chart lives
+in `charts/template-k8s/`, and e2e smoke tests live in `test/chainsaw/`.
 
 The current API is `example.meigma.io/v1alpha1` `NginxDeployment`. It owns a
 same-named ConfigMap, Deployment, and ClusterIP Service, and projects fresh
@@ -81,10 +81,12 @@ Use controller-runtime ownership and watches deliberately:
 Generated files are part of the source tree, but should be produced by tools:
 
 - run `moon run root:generate` after API type changes
-- run `moon run root:manifests` after API marker, RBAC, webhook, or manifest
-  changes
-- do not hand-edit `zz_generated.deepcopy.go`, generated CRDs, or generated
-  RBAC except to diagnose generator output
+- run `moon run root:manifests` after API marker, CRD, webhook, or manifest
+  changes; generated CRDs are written to `charts/template-k8s/crds`
+- do not hand-edit `zz_generated.deepcopy.go` or generated CRDs except to
+  diagnose generator output
+- keep operator deployment manifests in the Helm chart; do not restore a
+  second manifest tree
 
 ## Testing
 

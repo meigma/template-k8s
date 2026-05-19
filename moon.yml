@@ -34,7 +34,6 @@ fileGroups:
     - '.moon/proto/helm.toml'
   chainsawSources:
     - 'test/chainsaw/**/*.yaml'
-    - 'config/**/*.yaml'
     - 'charts/template-k8s/**/*'
     - 'Dockerfile'
   chainsawTooling:
@@ -56,14 +55,11 @@ tasks:
   manifests:
     script: |
       set -euo pipefail
-      controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
       controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
     inputs:
       - '@group(kubebuilderSources)'
       - '@group(controllerGenTooling)'
     outputs:
-      - 'config/crd/bases/**/*'
-      - 'config/rbac/role.yaml'
       - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
@@ -104,7 +100,7 @@ tasks:
       - '@group(goSources)'
       - '@group(kubebuilderSources)'
       - '@group(envtestTooling)'
-      - 'config/crd/bases/**/*'
+      - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
       runDepsInParallel: false
@@ -135,10 +131,9 @@ tasks:
     script: |
       set -euo pipefail
       controller-gen object paths="./..."
-      controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
       controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
       go test ./test/chart -run TestManagerRBACMatchesControllerGen -count=1
-      git diff --exit-code -- api config/crd/bases config/rbac/role.yaml charts/template-k8s/crds
+      git diff --exit-code -- api charts/template-k8s/crds
     inputs:
       - '@group(kubebuilderSources)'
       - '@group(controllerGenTooling)'

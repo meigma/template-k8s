@@ -24,7 +24,12 @@ func TestManagerRBACMatchesControllerGen(t *testing.T) {
 	)
 
 	chartRole := findObject(t, rendered, "ClusterRole", "template-k8s-manager-role")
-	generatedRole := readObject(t, filepath.Join(repoRoot, "config/rbac/role.yaml"))
+	generatedRoleDir := filepath.Join(t.TempDir(), "rbac")
+	run(t, repoRoot,
+		"controller-gen", "rbac:roleName=manager-role", "paths=./...",
+		"output:rbac:dir="+generatedRoleDir,
+	)
+	generatedRole := readObject(t, filepath.Join(generatedRoleDir, "role.yaml"))
 
 	if got, want := canonicalRules(t, chartRole), canonicalRules(t, generatedRole); got != want {
 		t.Fatalf("chart manager RBAC drifted from controller-gen output\nchart: %s\ncontroller-gen: %s", got, want)
