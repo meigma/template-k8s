@@ -11,3 +11,6 @@ Plan: start with current open source operator codebases and primary docs, prefer
 
 ## 2026-05-19 10:48 — Source survey
 Surveyed current upstream code from Cluster API, External Secrets Operator, cert-manager, Kueue, Flux source-controller, and OpenTelemetry Operator. Patterns worth considering for the template are field indexes for reverse lookups, patch helpers with owned conditions, status-only update predicates, partial-metadata watches, typed manager configuration, class/shard selection, leader-aware queue draining, artifact/content-observation status, webhook-backed invariants, and generated-desired-object pruning.
+
+## 2026-05-19 11:18 — Close
+Merged PR #11 (`refactor(cli): use kong and slog for manager startup`) after user approval. The landed work replaced generated flag/zap startup with Kong plus `slog`, split manager startup into ordered helpers, updated Moon build/run tasks to target `./cmd`, and added focused helper tests. Local `master` is fast-forwarded to `ca321f9`, the `feat/kong-slog-cli` worktree was removed, and the remote feature branch was deleted. The earlier operator-practice source survey remains useful context but was not converted into template policy in this session.
