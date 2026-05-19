@@ -246,6 +246,7 @@ tasks:
       release="${HELM_RELEASE:-template-k8s}"
       namespace="${HELM_NAMESPACE:-template-k8s-system}"
       image="${IMG:-}"
+      kubectl apply -f charts/template-k8s/crds
       args=(
         upgrade
         --install

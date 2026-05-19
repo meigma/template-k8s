@@ -4,7 +4,7 @@ project_name: template-k8s
 
 builds:
   - id: template-k8s
-    main: ./cmd/main.go
+    main: ./cmd
     binary: template-k8s
     env:
       - CGO_ENABLED=0
