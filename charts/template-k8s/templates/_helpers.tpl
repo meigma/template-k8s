@@ -108,3 +108,14 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "template-k8s.validateValues" -}}
+{{- $reservedLabels := list "app.kubernetes.io/name" "app.kubernetes.io/instance" "app.kubernetes.io/managed-by" "app.kubernetes.io/version" "helm.sh/chart" "control-plane" -}}
+{{- range $source, $labels := dict "commonLabels" .Values.commonLabels "podLabels" .Values.podLabels -}}
+{{- range $key, $_ := $labels -}}
+{{- if has $key $reservedLabels -}}
+{{- fail (printf "%s must not set reserved chart label %q" $source $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

@@ -33,12 +33,10 @@
       "type": "array"
     },
     "nameOverride": {
-      "type": "string",
-      "maxLength": 63
+      "$ref": "#/definitions/dnsLabelName"
     },
     "fullnameOverride": {
-      "type": "string",
-      "maxLength": 63
+      "$ref": "#/definitions/dnsLabelName"
     },
     "commonLabels": {
       "$ref": "#/definitions/stringMap"
@@ -55,8 +53,7 @@
           "type": "boolean"
         },
         "name": {
-          "type": "string",
-          "maxLength": 63
+          "$ref": "#/definitions/dnsLabelName"
         },
         "annotations": {
           "$ref": "#/definitions/stringMap"
@@ -238,7 +235,7 @@
       "required": ["secretName", "certPath", "certName", "keyName"],
       "properties": {
         "secretName": {
-          "type": "string"
+          "$ref": "#/definitions/dnsSubdomainName"
         },
         "certPath": {
           "type": "string",
@@ -253,6 +250,16 @@
           "minLength": 1
         }
       }
+    },
+    "dnsLabelName": {
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "dnsSubdomainName": {
+      "type": "string",
+      "maxLength": 253,
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
     }
   }
 }

@@ -35,6 +35,7 @@ fileGroups:
   chainsawSources:
     - 'test/chainsaw/**/*.yaml'
     - 'config/**/*.yaml'
+    - 'charts/template-k8s/**/*'
     - 'Dockerfile'
   chainsawTooling:
     - '.prototools'
@@ -136,6 +137,7 @@ tasks:
       controller-gen object paths="./..."
       controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
       controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
+      go test ./test/chart -run TestManagerRBACMatchesControllerGen -count=1
       git diff --exit-code -- api config/crd/bases config/rbac/role.yaml charts/template-k8s/crds
     inputs:
       - '@group(kubebuilderSources)'
@@ -219,44 +221,76 @@ tasks:
       runInCI: false
 
   install:
-    command: 'kubectl apply -k config/crd'
+    command: 'kubectl apply -f charts/template-k8s/crds'
     deps:
       - 'root:manifests'
     inputs:
-      - 'config/crd/**/*'
+      - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
       runInCI: false
 
   uninstall:
-    command: 'kubectl delete --ignore-not-found=true -k config/crd'
+    command: 'kubectl delete --ignore-not-found=true -f charts/template-k8s/crds'
     deps:
       - 'root:manifests'
     inputs:
-      - 'config/crd/**/*'
+      - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
       runInCI: false
 
   deploy:
     script: |
-      kubectl apply -k config/default
-      kubectl set image deployment/template-k8s-controller-manager manager="${IMG:-controller:latest}" -n template-k8s-system
-      if [ "${LOCAL_IMAGE:-false}" = "true" ]; then
-        kubectl patch deployment/template-k8s-controller-manager -n template-k8s-system --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"IfNotPresent"}]}}}}'
+      set -euo pipefail
+      release="${HELM_RELEASE:-template-k8s}"
+      namespace="${HELM_NAMESPACE:-template-k8s-system}"
+      image="${IMG:-}"
+      args=(
+        upgrade
+        --install
+        "$release"
+        charts/template-k8s
+        --namespace
+        "$namespace"
+        --create-namespace
+      )
+      if [ -n "$image" ]; then
+        if [[ "$image" == *@* ]]; then
+          args+=(--set-string "image.repository=${image%@*}")
+          args+=(--set-string "image.digest=${image#*@}")
+          args+=(--set-string "image.tag=")
+        else
+          last_segment="${image##*/}"
+          if [[ "$last_segment" == *:* ]]; then
+            args+=(--set-string "image.repository=${image%:*}")
+            args+=(--set-string "image.tag=${image##*:}")
+          else
+            args+=(--set-string "image.repository=$image")
+            args+=(--set-string "image.tag=")
+          fi
+          args+=(--set-string "image.digest=")
+        fi
       fi
+      if [ "${LOCAL_IMAGE:-false}" = "true" ]; then
+        args+=(--set "image.pullPolicy=IfNotPresent")
+      fi
+      helm "${args[@]}"
     deps:
-      - 'root:manifests'
+      - 'root:chart-validate'
     inputs:
-      - 'config/**/*'
+      - '@group(chartSources)'
+      - '@group(helmTooling)'
     options:
       cache: false
       runInCI: false
 
   undeploy:
-    command: 'kubectl delete --ignore-not-found=true -k config/default'
+    script: |
+      set -euo pipefail
+      helm uninstall "${HELM_RELEASE:-template-k8s}" --namespace "${HELM_NAMESPACE:-template-k8s-system}" --ignore-not-found
     inputs:
-      - 'config/**/*'
+      - '@group(helmTooling)'
     options:
       cache: false
       runInCI: false
@@ -293,6 +327,7 @@ tasks:
       KIND="$kind_bin" KIND_CLUSTER="$cluster" IMG="$manager_image" KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}" \
         chainsaw test --config test/chainsaw/chainsaw-config.yaml test/chainsaw
     deps:
+      - 'root:chart-validate'
       - 'root:manifests'
       - 'root:generate'
       - 'root:fmt'
@@ -301,6 +336,7 @@ tasks:
       - '@group(goSources)'
       - '@group(chainsawSources)'
       - '@group(chainsawTooling)'
+      - '@group(helmTooling)'
     options:
       cache: false
       runDepsInParallel: false
