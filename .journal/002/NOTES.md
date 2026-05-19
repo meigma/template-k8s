@@ -20,3 +20,6 @@ Responded to review feedback on `feat/chainsaw-e2e` with `5035af5` (`test: harde
 
 ## 2026-05-19 08:52 — Envtest Moon task
 Responded to the final review note with `d514b86` (`test: add moon envtest task`). The branch now has `moon run root:test`, which wraps `KUBEBUILDER_ASSETS="$(setup-envtest use 1.35.x -p path)" go test ./...`, participates in `moon ci`, and replaces stale plain `go test ./...` guidance in README and the repo-local operator skill. Validation passed: `moon task root:test`, `moon run root:test --summary minimal`, `moon ci --summary minimal`, `moon run root:test-e2e --summary minimal`, and `git diff --check` / `git diff --cached --check`.
+
+## 2026-05-19 09:54 — Close
+PR #9 (`test: replace e2e suite with chainsaw`) was approved, all GitHub checks were green, and the branch was squash-merged to `master` as `67a6402`. Local `master` was fast-forwarded, the remote `feat/chainsaw-e2e` branch was deleted after `gh pr merge` hit a local worktree collision, and the Worktrunk feature worktree was removed. Closeout artifacts were written in `.journal/002/SUMMARY.md`, `.journal/INDEX.md`, and this final notes entry; `.journal/TECH_NOTES.md` already captured the durable Moon/Chainsaw/envtest guidance from the review fixes.
