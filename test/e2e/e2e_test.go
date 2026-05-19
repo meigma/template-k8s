@@ -48,12 +48,12 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
 
 		By("installing CRDs")
-		cmd = exec.Command("make", "install")
+		cmd = moonCommand("root:install")
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
 		By("deploying the controller-manager")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", managerImage))
+		cmd = moonCommand("root:deploy", fmt.Sprintf("IMG=%s", managerImage), "LOCAL_IMAGE=true")
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
 	})
@@ -65,12 +65,16 @@ var _ = Describe("Manager", Ordered, func() {
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
 		_, _ = utils.Run(cmd)
 
+		By("cleaning up the metrics ClusterRoleBinding")
+		cmd = exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found=true")
+		_, _ = utils.Run(cmd)
+
 		By("undeploying the controller-manager")
-		cmd = exec.Command("make", "undeploy")
+		cmd = moonCommand("root:undeploy")
 		_, _ = utils.Run(cmd)
 
 		By("uninstalling CRDs")
-		cmd = exec.Command("make", "uninstall")
+		cmd = moonCommand("root:uninstall")
 		_, _ = utils.Run(cmd)
 
 		By("removing manager namespace")
@@ -158,12 +162,17 @@ var _ = Describe("Manager", Ordered, func() {
 		})
 
 		It("should ensure the metrics endpoint is serving metrics", func() {
+			By("removing any stale metrics ClusterRoleBinding")
+			cmd := exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found=true")
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to delete stale ClusterRoleBinding")
+
 			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
-			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
+			cmd = exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
 				"--clusterrole=template-k8s-metrics-reader",
 				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 			)
-			_, err := utils.Run(cmd)
+			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create ClusterRoleBinding")
 
 			By("validating that the metrics service is available")
@@ -252,17 +261,61 @@ var _ = Describe("Manager", Ordered, func() {
 			Eventually(verifyMetricsAvailable, 2*time.Minute).Should(Succeed())
 		})
 
-		// +kubebuilder:scaffold:e2e-webhooks-checks
+		It("should reconcile the sample NginxDeployment", func() {
+			samplePath := "config/samples/example_v1alpha1_nginxdeployment.yaml"
+			sampleNamespace := fmt.Sprintf("template-k8s-sample-%d", time.Now().Unix()%100000)
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput, err := getMetricsOutput()
-		// Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+			By("creating a restricted namespace for the sample")
+			cmd := exec.Command("kubectl", "create", "ns", sampleNamespace)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to create sample namespace")
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "ns", sampleNamespace, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("labeling the sample namespace to enforce the restricted security policy")
+			cmd = exec.Command("kubectl", "label", "--overwrite", "ns", sampleNamespace,
+				"pod-security.kubernetes.io/enforce=restricted")
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to label sample namespace with restricted policy")
+
+			By("applying the sample NginxDeployment")
+			cmd = exec.Command("kubectl", "apply", "-n", sampleNamespace, "-f", samplePath)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply sample NginxDeployment")
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "-n", sampleNamespace, "-f", samplePath, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("waiting for the sample NginxDeployment to become available")
+			cmd = exec.Command(
+				"kubectl",
+				"wait",
+				"-n",
+				sampleNamespace,
+				"nginxdeployments.example.meigma.io/nginx-sample",
+				"--for=condition=Available",
+				"--timeout=3m",
+			)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Sample NginxDeployment did not become available")
+
+			By("checking the owned nginx Deployment and Service")
+			cmd = exec.Command("kubectl", "wait", "-n", sampleNamespace, "deployment/nginx-sample",
+				"--for=condition=Available", "--timeout=3m")
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Owned nginx Deployment did not become available")
+
+			cmd = exec.Command("kubectl", "get", "service", "nginx-sample", "-n", sampleNamespace)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Owned nginx Service should exist")
+		})
+
+		// +kubebuilder:scaffold:e2e-webhooks-checks
 	})
 })
 

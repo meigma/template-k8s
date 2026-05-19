@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: widgets.example.meigma.io
+  name: nginxdeployments.example.meigma.io
 spec:
   group: example.meigma.io
   names:
-    kind: Widget
-    listKind: WidgetList
-    plural: widgets
-    singular: widget
+    kind: NginxDeployment
+    listKind: NginxDeploymentList
+    plural: nginxdeployments
+    singular: nginxdeployment
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Widget is the Schema for the widgets API
+        description: NginxDeployment is the Schema for the nginxdeployments API
         properties:
           apiVersion:
             description: |-
@@ -37,19 +37,36 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Widget
+            description: spec defines the desired state of NginxDeployment
             properties:
-              foo:
-                description: foo is an example field of Widget. Edit widget_types.go
-                  to remove/update
+              config:
+                description: Config is the nginx configuration file content.
+                maxLength: 65536
                 type: string
+              image:
+                default: nginxinc/nginx-unprivileged:stable
+                description: Image is the nginx container image to run.
+                type: string
+              port:
+                default: 8080
+                description: Port is the container port nginx listens on.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
+              replicas:
+                default: 1
+                description: Replicas is the desired number of nginx pods.
+                format: int32
+                minimum: 0
+                type: integer
             type: object
           status:
-            description: status defines the observed state of Widget
+            description: status defines the observed state of NginxDeployment
             properties:
               conditions:
                 description: |-
-                  conditions represent the current state of the Widget resource.
+                  conditions represent the current state of the NginxDeployment resource.
                   Each condition has a unique type and reflects the status of a specific aspect of the resource.
 
                   Standard condition types include:
@@ -116,10 +133,21 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              readyReplicas:
+                description: ReadyReplicas is the number of nginx pods currently ready.
+                format: int32
+                type: integer
             type: object
         required:
         - spec
         type: object
+        x-kubernetes-validations:
+        - message: metadata.name must be 63 characters or less because owned resources
+            are named after the NginxDeployment
+          rule: self.metadata.name.size() <= 63
+        - message: metadata.name must be an RFC 1123 label because owned Services
+            are named after the NginxDeployment
+          rule: self.metadata.name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$')
     served: true
     storage: true
     subresources:

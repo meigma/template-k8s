@@ -45,15 +45,20 @@ helm version --short
 
 ## Starter Operator
 
-The current scaffold is a stock Kubebuilder `go/v4` operator with one dummy API:
+The current scaffold is a Kubebuilder `go/v4` operator with one prototype API:
 
 - group: `example.meigma.io`
 - version: `v1alpha1`
-- kind: `Widget`
+- kind: `NginxDeployment`
 
-Generated workflow files such as the Makefile and Kustomize manifests are still
-present for now. They are intentionally left as scaffold output so the next
-slice can replace them with the template workflow.
+The first prototype target is a minimal nginx deployment operator. Each
+`NginxDeployment` reconciles to an owned ConfigMap, Deployment, and ClusterIP
+Service, with Deployment readiness projected back into status.
+
+Because this prototype names child resources after the custom resource, a
+`NginxDeployment` name must be a Service-safe DNS label no longer than 63
+characters. Inline nginx config is capped at 64 KiB before it is copied into an
+owned ConfigMap.
 
 ## Moon Tasks
 
@@ -69,8 +74,10 @@ moon run root:lint-fix
 moon run root:lint-config
 moon run root:build
 moon run root:run
+moon run root:test-e2e
 ```
 
 These tasks are the Moon equivalents of Kubebuilder's generated `make manifests`
-and `make generate` targets plus the basic Go format, vet, lint, build, and
-local run targets. They use tools from the activated Proto-managed environment.
+and `make generate` targets plus the basic Go format, vet, lint, build, local
+run, and Kind-backed e2e smoke paths. They use tools from the activated
+Proto-managed environment.

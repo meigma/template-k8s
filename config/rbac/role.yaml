@@ -5,28 +5,37 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - example.meigma.io
+  - ""
   resources:
-  - widgets
+  - configmaps
+  - services
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
-  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - example.meigma.io
   resources:
-  - widgets/finalizers
+  - nginxdeployments
   verbs:
-  - update
+  - get
+  - list
+  - watch
 - apiGroups:
   - example.meigma.io
   resources:
-  - widgets/status
+  - nginxdeployments/status
   verbs:
-  - get
   - patch
-  - update

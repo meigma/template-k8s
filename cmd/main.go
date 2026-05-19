@@ -162,11 +162,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.WidgetReconciler{
+	if err := (&controller.NginxDeploymentReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Failed to create controller", "controller", "widget")
+		setupLog.Error(err, "Failed to create controller", "controller", "nginxdeployment")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

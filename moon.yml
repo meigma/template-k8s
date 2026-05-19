@@ -137,3 +137,91 @@ tasks:
       cache: false
       runDepsInParallel: false
       runInCI: false
+
+  docker-build:
+    command: 'bash -c ''docker build -t "${IMG:-controller:latest}" .'''
+    inputs:
+      - 'Dockerfile'
+      - '@group(goSources)'
+    options:
+      cache: false
+      runInCI: false
+
+  install:
+    command: 'kubectl apply -k config/crd'
+    deps:
+      - 'root:manifests'
+    inputs:
+      - 'config/crd/**/*'
+    options:
+      cache: false
+      runInCI: false
+
+  uninstall:
+    command: 'kubectl delete --ignore-not-found=true -k config/crd'
+    deps:
+      - 'root:manifests'
+    inputs:
+      - 'config/crd/**/*'
+    options:
+      cache: false
+      runInCI: false
+
+  deploy:
+    script: |
+      kubectl apply -k config/default
+      kubectl set image deployment/template-k8s-controller-manager manager="${IMG:-controller:latest}" -n template-k8s-system
+      if [ "${LOCAL_IMAGE:-false}" = "true" ]; then
+        kubectl patch deployment/template-k8s-controller-manager -n template-k8s-system --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","imagePullPolicy":"IfNotPresent"}]}}}}'
+      fi
+    deps:
+      - 'root:manifests'
+    inputs:
+      - 'config/**/*'
+    options:
+      cache: false
+      runInCI: false
+
+  undeploy:
+    command: 'kubectl delete --ignore-not-found=true -k config/default'
+    inputs:
+      - 'config/**/*'
+    options:
+      cache: false
+      runInCI: false
+
+  test-e2e:
+    script: |
+      set -e
+      kind_bin="${KIND:-kind}"
+      command -v "$kind_bin" >/dev/null
+      cluster="${KIND_CLUSTER:-template-k8s-test-e2e}"
+      created=0
+      cleanup() {
+        if [ "$created" -eq 1 ]; then
+          "$kind_bin" delete cluster --name "$cluster"
+        fi
+      }
+      trap cleanup EXIT
+      if "$kind_bin" get clusters | grep -qx "$cluster"; then
+        echo "Using existing Kind cluster $cluster"
+      else
+        created=1
+        "$kind_bin" create cluster --name "$cluster"
+      fi
+      set +e
+      KIND="$kind_bin" KIND_CLUSTER="$cluster" go test -tags=e2e ./test/e2e/ -v -ginkgo.v
+      exit "$?"
+    deps:
+      - 'root:manifests'
+      - 'root:generate'
+      - 'root:fmt'
+      - 'root:vet'
+    inputs:
+      - '@group(goSources)'
+      - 'config/**/*'
+      - 'Dockerfile'
+    options:
+      cache: false
+      runDepsInParallel: false
+      runInCI: false
