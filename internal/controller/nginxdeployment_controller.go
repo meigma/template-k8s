@@ -11,26 +11,26 @@ import (
 	examplev1alpha1 "github.com/meigma/template-k8s/api/v1alpha1"
 )
 
-// WidgetReconciler reconciles a Widget object
-type WidgetReconciler struct {
+// NginxDeploymentReconciler reconciles a NginxDeployment object
+type NginxDeploymentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=example.meigma.io,resources=widgets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=example.meigma.io,resources=widgets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=example.meigma.io,resources=widgets/finalizers,verbs=update
+// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Widget object against the actual cluster state, and then
+// the NginxDeployment object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
-func (r *WidgetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NginxDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -39,9 +39,9 @@ func (r *WidgetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *WidgetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NginxDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&examplev1alpha1.Widget{}).
-		Named("widget").
+		For(&examplev1alpha1.NginxDeployment{}).
+		Named("nginxdeployment").
 		Complete(r)
 }

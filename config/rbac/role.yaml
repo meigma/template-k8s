@@ -7,7 +7,7 @@ rules:
 - apiGroups:
   - example.meigma.io
   resources:
-  - widgets
+  - nginxdeployments
   verbs:
   - create
   - delete
@@ -19,13 +19,13 @@ rules:
 - apiGroups:
   - example.meigma.io
   resources:
-  - widgets/finalizers
+  - nginxdeployments/finalizers
   verbs:
   - update
 - apiGroups:
   - example.meigma.io
   resources:
-  - widgets/status
+  - nginxdeployments/status
   verbs:
   - get
   - patch

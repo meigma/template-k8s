@@ -45,15 +45,15 @@ helm version --short
 
 ## Starter Operator
 
-The current scaffold is a stock Kubebuilder `go/v4` operator with one dummy API:
+The current scaffold is a Kubebuilder `go/v4` operator with one prototype API:
 
 - group: `example.meigma.io`
 - version: `v1alpha1`
-- kind: `Widget`
+- kind: `NginxDeployment`
 
-Generated workflow files such as the Makefile and Kustomize manifests are still
-present for now. They are intentionally left as scaffold output so the next
-slice can replace them with the template workflow.
+The first prototype target is a minimal nginx deployment operator. The API and
+controller scaffold exist; reconcile logic is intentionally left for a later
+slice.
 
 ## Moon Tasks
 

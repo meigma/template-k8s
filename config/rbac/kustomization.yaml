@@ -22,6 +22,6 @@ resources:
 # default, aiding admins in cluster management. Those roles are
 # not used by the template-k8s itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
-- widget_admin_role.yaml
-- widget_editor_role.yaml
-- widget_viewer_role.yaml
+- nginxdeployment_admin_role.yaml
+- nginxdeployment_editor_role.yaml
+- nginxdeployment_viewer_role.yaml

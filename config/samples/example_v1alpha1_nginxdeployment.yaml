@@ -1,0 +1,21 @@
+apiVersion: example.meigma.io/v1alpha1
+kind: NginxDeployment
+metadata:
+  labels:
+    app.kubernetes.io/name: template-k8s
+    app.kubernetes.io/managed-by: kustomize
+  name: nginx-sample
+spec:
+  replicas: 1
+  image: nginx:stable
+  port: 80
+  config: |
+    events {}
+    http {
+      server {
+        listen 80;
+        location / {
+          return 200 "hello from template-k8s\n";
+        }
+      }
+    }
