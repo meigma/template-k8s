@@ -14,3 +14,6 @@ Created implementation worktree `feat/nginx-api` at `.wt/feat-nginx-api`. The re
 
 ## 2026-05-18 17:58 — Nginx API scaffold committed
 Replaced the Widget scaffold with a Kubebuilder-generated `NginxDeployment` API and controller on branch `feat/nginx-api` (`625ddb2`). The API currently carries simple prototype fields for `image`, `replicas`, `port`, `config`, and status `readyReplicas`/`conditions`; the reconciler remains generated/no-op as requested. Regenerated deepcopy code, CRD, RBAC, and sample manifests. Verification passed: `moon run root:build`, `go test ./...` after installing ignored envtest assets under `bin/k8s/1.35.0-darwin-arm64`, `moon run root:lint`, and `git diff --cached --check`.
+
+## 2026-05-18 19:19 — Controller implementation committed
+Implemented the first real `NginxDeployment` reconciliation loop on `feat/nginx-api` (`1c35e43`). The controller now owns a same-named ConfigMap, Deployment, and ClusterIP Service; mounts `nginx.conf`; rolls pods with a config hash annotation; watches owned children; and projects Deployment readiness into `status.readyReplicas` plus an `Available` condition. Regenerated manager RBAC for ConfigMaps, Services, and Deployments. Verification passed: `moon run root:manifests`, `moon run root:build`, `go test ./...`, `moon run root:lint`, and `git diff --check`.
