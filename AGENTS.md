@@ -90,11 +90,24 @@ Generated files are part of the source tree, but should be produced by tools:
 
 ## Testing
 
-Keep reconciler behavior in envtest. Cover owner references, labels/selectors,
-default handling, status freshness, restricted-compatible pod settings, rollout
-hashes, and API validation near the controller code.
+Keep the test layers intentionally separate.
 
-Use Chainsaw for the Kind-backed smoke path. Keep e2e coverage focused on the
-installed CRD/controller, the sample custom resource, the parent condition, and
-the owned workload/service. Do not reintroduce the old Go e2e harness unless
-there is a concrete reason Chainsaw cannot cover the workflow.
+Use envtest for the controller/API behavior matrix. Cover owner references,
+labels/selectors, default handling, status freshness, restricted-compatible pod
+settings, rollout hashes, API validation, and update paths near the controller
+code. Include at least one manager-backed envtest case for each controller so
+`.For(...)`, `.Owns(...)`, watches, predicates, and field indexes are exercised
+through controller-runtime rather than only by direct `Reconcile` calls.
+
+Use Chainsaw for the Kind-backed install and runtime smoke path. Keep e2e
+coverage focused on chart install/upgrade wiring, manager readiness, RBAC or
+auth paths that only fail in a real cluster, metrics exposure, one
+representative custom resource, the parent condition, and the owned
+workload/service becoming available.
+
+Do not duplicate the envtest behavior matrix in Chainsaw. Add a Chainsaw case
+only when the assertion depends on the packaged operator running in a real
+cluster, multiple deployed controllers, Kubernetes workload controllers, or
+cluster networking. Add or extend envtest when the assertion is about
+reconciler output, API validation, status transitions, event routing,
+predicates, indexes, or object ownership.
