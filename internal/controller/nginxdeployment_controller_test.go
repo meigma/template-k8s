@@ -156,13 +156,32 @@ var _ = Describe("NginxDeployment Controller", func() {
 		Expect(*deployment.Spec.Replicas).To(Equal(int32(0)))
 	})
 
-	It("rejects names too long for same-named children and selector labels", func() {
+	It("rejects names that cannot be reused for same-named child resources", func() {
+		for _, name := range []string{
+			"nginx-" + strings.Repeat("a", 64),
+			"nginx.sample",
+		} {
+			resource := &examplev1alpha1.NginxDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: testNamespace,
+				},
+				Spec: nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n"),
+			}
+
+			err := k8sClient.Create(ctx, resource)
+			Expect(err).To(HaveOccurred())
+			Expect(apierrors.IsInvalid(err)).To(BeTrue())
+		}
+	})
+
+	It("rejects oversized inline config before reconciling a ConfigMap", func() {
 		resource := &examplev1alpha1.NginxDeployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "nginx-" + strings.Repeat("a", 64),
+				Name:      "oversized-config",
 				Namespace: testNamespace,
 			},
-			Spec: nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n"),
+			Spec: nginxSpec(1, "nginx:stable", 80, strings.Repeat("x", 65537)),
 		}
 
 		err := k8sClient.Create(ctx, resource)

@@ -28,6 +28,7 @@ type NginxDeploymentSpec struct {
 	Port int32 `json:"port,omitempty"`
 
 	// Config is the nginx configuration file content.
+	// +kubebuilder:validation:MaxLength=65536
 	// +optional
 	Config string `json:"config,omitempty"`
 }
@@ -56,6 +57,7 @@ type NginxDeploymentStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.size() <= 63",message="metadata.name must be 63 characters or less because owned resources are named after the NginxDeployment"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be an RFC 1123 label because owned Services are named after the NginxDeployment"
 
 // NginxDeployment is the Schema for the nginxdeployments API
 type NginxDeployment struct {

@@ -17,8 +17,15 @@ workflow, then tighten behavior from what the prototype exposes.
 - Keep defaults close to the reconciler too. API-server defaulting helps cluster
   objects, but tests and typed clients may construct objects directly.
 - If child resources are named after the custom resource or the custom resource
-  name is reused in labels, intentionally validate the CR name length or derive
-  child names and selector labels from a stable label-safe hash.
+  name is reused in labels, intentionally validate every downstream constraint
+  or derive child names and selector labels from a stable label-safe hash. For
+  same-named Services, length-only validation is insufficient because custom
+  resource names can be DNS subdomains with dots, while Service names must be
+  DNS labels.
+- Bound inline strings that are copied into Kubernetes objects. For
+  ConfigMap-backed fields, use a small `MaxLength` or a reference pattern; do
+  not let the CR accept payloads the reconciler cannot materialize under the
+  ConfigMap size limit.
 - After changing API field types, regenerate deepcopy code and manifests. A Go
   pointer change may mainly show up in `zz_generated.deepcopy.go`.
 

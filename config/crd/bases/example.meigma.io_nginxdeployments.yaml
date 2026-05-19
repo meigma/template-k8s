@@ -41,6 +41,7 @@ spec:
             properties:
               config:
                 description: Config is the nginx configuration file content.
+                maxLength: 65536
                 type: string
               image:
                 default: nginxinc/nginx-unprivileged:stable
@@ -144,6 +145,9 @@ spec:
         - message: metadata.name must be 63 characters or less because owned resources
             are named after the NginxDeployment
           rule: self.metadata.name.size() <= 63
+        - message: metadata.name must be an RFC 1123 label because owned Services
+            are named after the NginxDeployment
+          rule: self.metadata.name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$')
     served: true
     storage: true
     subresources:

@@ -55,6 +55,11 @@ The first prototype target is a minimal nginx deployment operator. Each
 `NginxDeployment` reconciles to an owned ConfigMap, Deployment, and ClusterIP
 Service, with Deployment readiness projected back into status.
 
+Because this prototype names child resources after the custom resource, a
+`NginxDeployment` name must be a Service-safe DNS label no longer than 63
+characters. Inline nginx config is capped at 64 KiB before it is copied into an
+owned ConfigMap.
+
 ## Moon Tasks
 
 Moon is the template task front door:
