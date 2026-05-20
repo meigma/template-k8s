@@ -113,7 +113,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Stage and validate ghd release assets
+      - name: Stage and validate release assets
         env:
           RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
         run: |
@@ -122,22 +122,11 @@ jobs:
           version="${RELEASE_TAG#v}"
           binary_name="template-k8s"
           asset_prefix="${binary_name}_"
-          expected_signer="${GITHUB_REPOSITORY}/.github/workflows/release.yml"
-          actual_signer="$(awk -F'"' '/signer_workflow/ { print $2; exit }' ghd.toml)"
 
           if [ "$version" = "$RELEASE_TAG" ] || [ -z "$version" ]; then
             echo "could not resolve release version from $RELEASE_TAG" >&2
             exit 1
           fi
-
-          if [ "$actual_signer" != "$expected_signer" ]; then
-            echo "ghd.toml signer_workflow must be $expected_signer, got $actual_signer" >&2
-            exit 1
-          fi
-
-          grep -Fq "name = \"$binary_name\"" ghd.toml
-          grep -Fq "tag_pattern = \"v\${version}\"" ghd.toml
-          grep -Fq "path = \"$binary_name\"" ghd.toml
 
           mkdir -p dist/release-assets
 
@@ -173,11 +162,9 @@ jobs:
             for arch in amd64 arm64; do
               expected="${binary_name}_${version}_${os}_${arch}"
               expected_sbom="${expected}.sbom.json"
-              expected_pattern="pattern = \"${binary_name}_\${version}_${os}_${arch}\""
 
               test -x "dist/release-assets/$expected"
               test -f "dist/release-assets/$expected_sbom"
-              grep -Fq "$expected_pattern" ghd.toml
               awk -v name="$expected" '$2 == name && length($1) == 64 && $1 ~ /^[[:xdigit:]]+$/ { found = 1 } END { exit(found ? 0 : 1) }' dist/release-assets/checksums.txt
             done
           done
@@ -468,7 +455,6 @@ jobs:
             echo "gh release view $RELEASE_TAG --repo $GITHUB_REPOSITORY --json isDraft,assets"
             echo "asset=\"template-k8s_${RELEASE_VERSION}_\$(go env GOOS)_\$(go env GOARCH)\""
             echo "gh attestation verify \"dist/release-assets/\${asset}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
-            echo "ghd download \"$GITHUB_REPOSITORY/template-k8s@${RELEASE_VERSION}\" --output \"\$(mktemp -d)\""
             echo '```'
             echo
             echo "Container verification commands:"
