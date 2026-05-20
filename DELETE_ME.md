@@ -321,6 +321,34 @@ that shape, trim the release files before the first release.
   - Add or remove ecosystems if the generated repository adds docs, frontend,
     Terraform, or other dependency surfaces.
 
+## Local Development Stack Checklist
+
+- `dev/ctlptl.yaml`
+  - Rename the Kind cluster from `kind-template-k8s-dev`.
+  - Rename the local registry from `template-k8s-registry` and choose an
+    available local port if `127.0.0.1:5005` conflicts.
+
+- `Tiltfile`
+  - Update the allowed Kubernetes context, Helm chart path, release name,
+    namespace, image selector, and controller Deployment name.
+  - Keep Tilt scoped to the local development context; use `ctlptl` tasks for
+    cluster lifecycle.
+
+- `.ko.yaml`
+  - Confirm the manager entrypoint remains `./cmd`.
+  - Confirm the local development base image matches the operator's runtime
+    expectations.
+
+- `dev/ko-build.sh` and `dev/stack-smoke.sh`
+  - Update the image build entrypoint, namespace names, sample custom resource,
+    Service name, port, and expected HTTP response.
+  - Keep `dev-stack-smoke` local-only and destructive to the dev cluster it
+    creates.
+
+- `moon.yml`
+  - Update `dev-*` task inputs and commands if the generated repository renames
+    the chart, sample fixture, manager image, or cluster context.
+
 ## Test And Sample Checklist
 
 - `internal/controller/nginxdeployment_controller_test.go`

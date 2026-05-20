@@ -150,6 +150,24 @@ Run the full local e2e smoke path:
 moon run root:test-e2e
 ```
 
+Run the local development stack with Kind, ctlptl, Tilt, and ko:
+
+```sh
+moon run root:dev-up
+```
+
+Stop and delete the local development stack:
+
+```sh
+moon run root:dev-down
+```
+
+Validate the development stack end to end:
+
+```sh
+moon run root:dev-stack-smoke
+```
+
 Run the full CI task set locally:
 
 ```sh

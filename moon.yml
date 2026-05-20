@@ -46,6 +46,20 @@ fileGroups:
     - '.golangci.yml'
     - '.prototools'
     - '.moon/proto/golangci-lint.toml'
+  devStackConfig:
+    - '.prototools'
+    - '.moon/proto/ctlptl.toml'
+    - '.moon/proto/helm.toml'
+    - '.moon/proto/kind.toml'
+    - '.moon/proto/ko.toml'
+    - '.moon/proto/kubectl.toml'
+    - '.moon/proto/tilt.toml'
+    - '.ko.yaml'
+    - '.tiltignore'
+    - 'Tiltfile'
+    - 'dev/ctlptl.yaml'
+    - 'dev/ko-build.sh'
+    - 'dev/stack-smoke.sh'
 
 workspace:
   inheritedTasks:
@@ -289,6 +303,66 @@ tasks:
       - '@group(helmTooling)'
     options:
       cache: false
+      runInCI: false
+
+  dev-cluster-up:
+    command: 'ctlptl apply -f dev/ctlptl.yaml'
+    inputs:
+      - '@group(devStackConfig)'
+    options:
+      cache: false
+      runInCI: false
+
+  dev-cluster-down:
+    command: 'ctlptl delete -f dev/ctlptl.yaml --cascade=true --ignore-not-found'
+    inputs:
+      - '@group(devStackConfig)'
+    options:
+      cache: false
+      runInCI: false
+
+  dev-up:
+    script: |
+      set -euo pipefail
+      ctlptl apply -f dev/ctlptl.yaml
+      kubectl config use-context kind-template-k8s-dev >/dev/null
+      tilt up --context kind-template-k8s-dev
+    inputs:
+      - '@group(devStackConfig)'
+      - '@group(chartSources)'
+      - '@group(goSources)'
+    options:
+      cache: false
+      interactive: true
+      runInCI: false
+
+  dev-down:
+    script: |
+      set -euo pipefail
+      set +e
+      if kubectl config get-contexts kind-template-k8s-dev >/dev/null 2>&1; then
+        tilt down --context kind-template-k8s-dev --delete-namespaces
+      fi
+      ctlptl delete -f dev/ctlptl.yaml --cascade=true --ignore-not-found
+    inputs:
+      - '@group(devStackConfig)'
+    options:
+      cache: false
+      runInCI: false
+
+  dev-stack-smoke:
+    command: 'bash dev/stack-smoke.sh'
+    deps:
+      - 'root:chart-validate'
+      - 'root:generate'
+    inputs:
+      - '@group(devStackConfig)'
+      - '@group(chartSources)'
+      - '@group(goSources)'
+      - 'test/chainsaw/fixtures/example_v1alpha1_nginxdeployment.yaml'
+    options:
+      cache: false
+      runDepsInParallel: false
       runInCI: false
 
   test-e2e:
