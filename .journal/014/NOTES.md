@@ -23,3 +23,6 @@ Validation: `moon run root:check --summary minimal`, `moon run root:test --summa
 Goal for the checkpoint: Add a small `AGENTS.md` reminder that discourages future agents from adding many narrowly scoped Moon recipes.
 Current state of the world: Added a short paragraph under Development Workflow saying to keep the Moon task surface small, prefer extending `root:check`, `root:test`, or existing scripts, and only add durable maintainer-facing tasks. Committed on `feat/moon-task-slimming` as `7e2b380` with `docs(agents): discourage Moon recipe sprawl`.
 Validation: `git diff --check` passed for the docs-only change.
+
+## 2026-05-20 11:38 — Close
+PR #33 (`build(moon): slim root task surface`) was squash-merged as `1620d08df77083058ebe68da48e34f4967b81a54` after user approval. Local `master` was fast-forwarded to the merge commit, the `feat/moon-task-slimming` Worktrunk worktree and local branch were removed, and the remote feature branch was deleted. Closeout wrote `.journal/014/SUMMARY.md`, updated `.journal/INDEX.md`, and revised `.journal/TECH_NOTES.md` with the new Moon task surface and stale-task cleanup.
