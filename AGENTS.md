@@ -36,6 +36,11 @@ Moon is the task front door. Do not add or restore Makefile-driven workflows.
 If upstream Kubebuilder docs say to run `make`, translate the step to the
 matching Moon task.
 
+Keep the Moon task surface small. Prefer extending `root:check`, `root:test`,
+or an existing script over adding narrowly scoped recipes. Add a new Moon task
+only when it is a durable workflow a maintainer should remember and run
+directly; avoid command sprawl that creates recipe fatigue.
+
 Common tasks:
 
 ```sh
