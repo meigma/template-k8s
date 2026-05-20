@@ -19,3 +19,9 @@ Goal for the checkpoint: replace the repo-specific README with a generic downstr
 Current state of the world: rewrote `README.md` on `feat/github-repo-settings` around placeholders like `<operator-name>`, `<api-group>/<version>`, `<Kind>`, `<org>/<repo>`, and `<namespace>`. The README now documents installation, usage, configuration, development, release, contributing, security, and license sections for the operator copied from this template rather than describing `template-k8s` itself.
 Validation: searched the README for leftover `template-k8s`, nginx, prototype, and starter wording; none remained. `git diff --check` passed.
 Plan: wait for the next customization request before committing the implementation branch.
+
+## 2026-05-19 22:19 — DELETE_ME implementation
+Goal for the checkpoint: add a root `DELETE_ME.md` modeled after `template-go` but tailored to downstream repositories generated from the Kubernetes operator template.
+Current state of the world: added `DELETE_ME.md` on `feat/github-repo-settings` with sections for template purpose, provided baseline, first setup checklist, project identity, API/reconciler replacement, Helm manifests, release/repository automation, tests/samples, agent guidance, artifact shape choices, final validation, and cleanup.
+Validation: ran `git diff --check`; searched `DELETE_ME.md` for intentional `template-k8s`, `NginxDeployment`, `example.meigma.io`, and `nginx` references; confirmed the planned file groups are represented and no trailing whitespace exists.
+Plan: leave the implementation branch uncommitted until the next instruction.
