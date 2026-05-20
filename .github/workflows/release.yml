@@ -156,9 +156,9 @@ jobs:
         with:
           subject-checksums: dist/release-assets/checksums.txt
 
-  container-image-release:
-    name: Container Image Release
-    runs-on: ubuntu-24.04
+  container-image-build:
+    name: Container Image Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
     needs:
       - resolve-release
       - binary-release-assets
@@ -168,9 +168,16 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    outputs:
-      image-name: ${{ steps.image.outputs.name }}
-      image-digest: ${{ steps.build.outputs.digest }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -227,26 +234,159 @@ jobs:
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
           context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           provenance: mode=max
           sbom: true
-          cache-from: type=gha,scope=template-k8s-release
-          cache-to: type=gha,mode=max,scope=template-k8s-release
+          cache-from: type=gha,scope=template-k8s-release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=template-k8s-release-${{ matrix.arch }}
           build-args: |
             VERSION=${{ steps.image.outputs.version }}
             COMMIT=${{ steps.image.outputs.commit }}
             DATE=${{ steps.image.outputs.date }}
             SOURCE=https://github.com/${{ github.repository }}
 
+      - name: Smoke test platform image
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+
+          set +e
+          docker run --rm --platform "${{ matrix.platform }}" "$IMAGE_REF" --help >/tmp/template-k8s-image-help.txt 2>&1
+          rc="$?"
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+            exit "$rc"
+          fi
+          test -s /tmp/template-k8s-image-help.txt
+
+      - name: Export platform digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "unexpected image digest: $DIGEST" >&2
+            exit 1
+          fi
+
+          mkdir -p /tmp/container-digests
+          touch "/tmp/container-digests/${DIGEST#sha256:}"
+
+      - name: Upload platform digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: container-digest-${{ matrix.arch }}
+          path: /tmp/container-digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  container-image-release:
+    name: Container Image Release
+    runs-on: ubuntu-24.04
+    needs:
+      - resolve-release
+      - binary-release-assets
+      - container-image-build
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    outputs:
+      image-name: ${{ steps.manifest.outputs.name }}
+      image-digest: ${{ steps.manifest.outputs.digest }}
+    steps:
+      - name: Resolve image metadata
+        id: image
+        env:
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          echo "name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE_NAME}:${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Download platform digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: container-digest-*
+          path: /tmp/container-digests
+          merge-multiple: true
+
+      - name: Create multi-platform manifest
+        id: manifest
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t digest_files < <(find /tmp/container-digests -maxdepth 1 -type f -print | sort)
+          if [ "${#digest_files[@]}" -ne 2 ]; then
+            echo "expected 2 platform digest files, found ${#digest_files[@]}" >&2
+            printf '%s\n' "${digest_files[@]}" >&2
+            exit 1
+          fi
+
+          refs=()
+          for digest_file in "${digest_files[@]}"; do
+            digest="$(basename "$digest_file")"
+            if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "unexpected digest artifact name: $digest" >&2
+              exit 1
+            fi
+            refs+=("${IMAGE_NAME}@sha256:${digest}")
+          done
+
+          docker buildx imagetools create --tag "$IMAGE_TAG" "${refs[@]}"
+
+          manifest_json="$(docker buildx imagetools inspect "$IMAGE_TAG" --format '{{json .}}')"
+          manifest_digest="$(jq -r '.manifest.digest' <<< "$manifest_json")"
+          platforms="$(jq -r '
+            [
+              .manifest.manifests[]
+              | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64"))
+              | "\(.platform.os)/\(.platform.architecture)"
+            ]
+            | unique
+            | join(",")
+          ' <<< "$manifest_json")"
+
+          if [[ ! "$manifest_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "unexpected manifest digest: $manifest_digest" >&2
+            exit 1
+          fi
+
+          if [ "$platforms" != "linux/amd64,linux/arm64" ]; then
+            echo "unexpected manifest platforms: $platforms" >&2
+            exit 1
+          fi
+
+          echo "name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "digest=${manifest_digest}" >> "$GITHUB_OUTPUT"
+
       - name: Smoke test release image
         run: |
           set -euo pipefail
 
           set +e
-          docker run --rm "${{ steps.image.outputs.tag }}" --help >/tmp/template-k8s-image-help.txt 2>&1
+          docker run --rm "${{ steps.manifest.outputs.tag }}" --help >/tmp/template-k8s-image-help.txt 2>&1
           rc="$?"
           set -e
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
@@ -257,8 +397,8 @@ jobs:
       - name: Attest container image
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-name: ${{ steps.image.outputs.name }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-name: ${{ steps.manifest.outputs.name }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true
 
   helm-chart-release:
