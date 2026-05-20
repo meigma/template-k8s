@@ -38,3 +38,8 @@ Verification: `moon run root:test`, `moon run root:lint`, `moon run root:chainsa
 Goal for the session: Publish the observability implementation for review and verify remote CI.
 Current state of the world: PR #16 is open at https://github.com/meigma/template-k8s/pull/16 with title `feat(controller): add operator observability signals`; head is `feat/operator-observability` at `51c566bc66c844e86a4aeb20d5aa0eda0fd7e60e`.
 Verification: `gh pr checks 16` reports `ci` and `Kusari Inspector` passing. Binary and container release dry-run checks are skipped by the existing release-branch gating policy.
+
+## 2026-05-19 17:50 — Controller logging follow-up
+Goal for the session: Add appropriately quiet controller-loop logging to the observability PR.
+Current state of the world: PR #16 now includes reconcile logging on `feat/operator-observability` at `1b87aa35fc42ecaa326822c92c24fbb21690a169`. The controller logs real child apply side effects and persisted availability condition transitions at info level, while reconcile lifecycle, deleted-object ignores, no-op child applies, and status patches without condition status/reason changes are behind `V(1)`.
+Verification: `moon run root:test`, `moon run root:lint`, `moon ci --summary minimal`, and `git diff --check` passed in the feature worktree after the logging change. Remote PR checks report `ci` and `Kusari Inspector` passing; binary and container release dry-runs are skipped by the existing release-branch gating policy.
