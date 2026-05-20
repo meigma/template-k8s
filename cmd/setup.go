@@ -9,9 +9,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	examplev1alpha1 "github.com/meigma/template-k8s/api/v1alpha1"
 	"github.com/meigma/template-k8s/internal/controller"
+	"github.com/meigma/template-k8s/internal/controller/telemetry"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -28,9 +30,14 @@ func init() {
 }
 
 func mustRegisterControllers(mgr manager.Manager) {
-	err := (&controller.NginxDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	controllerMetrics, err := telemetry.NewMetrics(crmetrics.Registry)
+	exitOnError(err, "Failed to register controller metrics", "controller", "nginxdeployment")
+
+	eventRecorder := mgr.GetEventRecorderFor("nginxdeployment-controller") //nolint:staticcheck
+	err = (&controller.NginxDeploymentReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Telemetry: telemetry.NewRecorder(controllerMetrics, eventRecorder),
 	}).SetupWithManager(mgr)
 	exitOnError(err, "Failed to create controller", "controller", "nginxdeployment")
 	// +kubebuilder:scaffold:builder

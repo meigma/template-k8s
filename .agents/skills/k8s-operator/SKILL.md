@@ -30,6 +30,27 @@ the assertion requires the packaged operator, Kubernetes workload controllers,
 cluster networking, multiple deployed controller instances, or another real
 cluster behavior envtest cannot model.
 
+## Observability Boundary
+
+Keep operator-specific metrics and events focused on behavior controller-runtime
+cannot infer. Use controller-runtime's built-in reconcile, workqueue, REST
+client, process, and Go runtime metrics for generic controller health.
+
+Template metrics must use finite labels. Do not add namespace, name, UID, image,
+or arbitrary spec values as metric labels. Keep object-specific state in
+Kubernetes status, and prefer counters for meaningful controller actions such as
+child resources created or corrected and status condition transitions.
+
+Emit Kubernetes Events for user-visible state changes, not for every reconcile.
+Aggregate child resource create/update results into one event per successful
+reconcile, and emit condition events only after the status patch succeeds and
+the persisted condition status or reason changes.
+
+Use controller-runtime's context logger in reconcile loops. Log actual
+controller side effects and persisted user-visible status transitions at info
+level. Put start/finish messages, deleted-object ignores, no-op child applies,
+and status patches that do not change condition status or reason behind `V(1)`.
+
 ## Best Practices From Mature Operators
 
 These patterns are worth carrying into this template as examples and decision

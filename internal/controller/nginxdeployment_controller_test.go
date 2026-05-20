@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -22,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	examplev1alpha1 "github.com/meigma/template-k8s/api/v1alpha1"
+	"github.com/meigma/template-k8s/internal/controller/telemetry"
 )
 
 const testNamespace = "default"
@@ -71,6 +74,68 @@ var _ = Describe("NginxDeployment Controller", func() {
 		expectService(updated, updated.Spec.Port)
 	})
 
+	It("records child resource apply metrics and events", func() {
+		controllerReconciler, testTelemetry := newTelemetryReconciler()
+		spec := nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
+		resource := createNginxDeployment(ctx, "records-child-apply", spec)
+
+		reconcileResource(ctx, controllerReconciler, resource)
+
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricChildApplyTotal,
+			map[string]string{"resource": "configmap", "operation": "created"},
+		)
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricChildApplyTotal,
+			map[string]string{"resource": "deployment", "operation": "created"},
+		)
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricChildApplyTotal,
+			map[string]string{"resource": "service", "operation": "created"},
+		)
+		expectEvent(testTelemetry.events, telemetry.EventReasonChildResourcesApplied)
+	})
+
+	It("records child resource corrections without no-op events", func() {
+		controllerReconciler, testTelemetry := newTelemetryReconciler()
+		initialSpec := nginxSpec(1, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
+		resource := createNginxDeployment(ctx, "records-child-updates", initialSpec)
+		reconcileResource(ctx, controllerReconciler, resource)
+		expectEvent(testTelemetry.events, telemetry.EventReasonChildResourcesApplied)
+		expectEvent(testTelemetry.events, reasonDeploymentStale)
+		drainEvents(testTelemetry.events)
+
+		updated := fetchNginxDeployment(ctx, objectKeyFor(resource))
+		updated.Spec = nginxSpec(2, "nginx:1.28", 8081, "events {}\nhttp { server { listen 8081; } }\n")
+		Expect(k8sClient.Update(ctx, updated)).To(Succeed())
+
+		reconcileResource(ctx, controllerReconciler, updated)
+
+		for _, resourceLabel := range []string{"configmap", "deployment", "service"} {
+			expectMetricValue(
+				testTelemetry.registry,
+				telemetry.MetricChildApplyTotal,
+				map[string]string{"resource": resourceLabel, "operation": "updated"},
+			)
+		}
+		expectEvent(testTelemetry.events, telemetry.EventReasonChildResourcesApplied)
+		drainEvents(testTelemetry.events)
+
+		reconcileResource(ctx, controllerReconciler, fetchNginxDeployment(ctx, objectKeyFor(resource)))
+
+		expectNoEvent(testTelemetry.events, telemetry.EventReasonChildResourcesApplied)
+		for _, resourceLabel := range []string{"configmap", "deployment", "service"} {
+			expectMetricValue(
+				testTelemetry.registry,
+				telemetry.MetricChildApplyTotal,
+				map[string]string{"resource": resourceLabel, "operation": "updated"},
+			)
+		}
+	})
+
 	It("uses a default nginx config when the spec omits config", func() {
 		spec := nginxSpec(1, "nginx:stable", 8082, "")
 		resource := createNginxDeployment(ctx, "defaults-config", spec)
@@ -112,6 +177,56 @@ var _ = Describe("NginxDeployment Controller", func() {
 		current = fetchNginxDeployment(ctx, objectKeyFor(resource))
 		Expect(current.Status.ReadyReplicas).To(Equal(nginxReplicas(resource)))
 		expectAvailableCondition(current, metav1.ConditionTrue, reasonDeploymentReady)
+	})
+
+	It("records status transition metrics and events after patching status", func() {
+		controllerReconciler, testTelemetry := newTelemetryReconciler()
+		spec := nginxSpec(2, "nginx:stable", 80, "events {}\nhttp { server { listen 80; } }\n")
+		resource := createNginxDeployment(ctx, "records-status-events", spec)
+
+		reconcileResource(ctx, controllerReconciler, resource)
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricStatusTransitionTotal,
+			map[string]string{"condition": conditionAvailable, "status": "false", "reason": reasonDeploymentStale},
+		)
+		expectEvent(testTelemetry.events, reasonDeploymentStale)
+		drainEvents(testTelemetry.events)
+
+		deployment := fetchDeployment(ctx, objectKeyFor(resource))
+		deployment.Status.ObservedGeneration = deployment.Generation
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+
+		reconcileResource(ctx, controllerReconciler, resource)
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricStatusTransitionTotal,
+			map[string]string{"condition": conditionAvailable, "status": "false", "reason": reasonDeploymentProgressing},
+		)
+		expectEvent(testTelemetry.events, reasonDeploymentProgressing)
+		drainEvents(testTelemetry.events)
+
+		deployment = fetchDeployment(ctx, objectKeyFor(resource))
+		deployment.Status.ObservedGeneration = deployment.Generation
+		deployment.Status.Replicas = nginxReplicas(resource)
+		deployment.Status.ReadyReplicas = nginxReplicas(resource)
+		deployment.Status.AvailableReplicas = nginxReplicas(resource)
+		deployment.Status.Conditions = []appsv1.DeploymentCondition{
+			{
+				Type:   appsv1.DeploymentAvailable,
+				Status: corev1.ConditionTrue,
+				Reason: "MinimumReplicasAvailable",
+			},
+		}
+		Expect(k8sClient.Status().Update(ctx, deployment)).To(Succeed())
+
+		reconcileResource(ctx, controllerReconciler, resource)
+		expectMetricValue(
+			testTelemetry.registry,
+			telemetry.MetricStatusTransitionTotal,
+			map[string]string{"condition": conditionAvailable, "status": "true", "reason": reasonDeploymentReady},
+		)
+		expectEvent(testTelemetry.events, reasonDeploymentReady)
 	})
 
 	It("does not report available from stale deployment status after a spec update", func() {
@@ -258,6 +373,91 @@ func startControllerManager() {
 	})
 }
 
+type observedTelemetry struct {
+	registry *prometheus.Registry
+	events   *record.FakeRecorder
+	recorder telemetry.Recorder
+}
+
+func newTelemetryReconciler() (*NginxDeploymentReconciler, observedTelemetry) {
+	observed := newObservedTelemetry()
+	return &NginxDeploymentReconciler{
+		Client:    k8sClient,
+		Scheme:    k8sClient.Scheme(),
+		Telemetry: observed.recorder,
+	}, observed
+}
+
+func newObservedTelemetry() observedTelemetry {
+	registry := prometheus.NewRegistry()
+	metrics, err := telemetry.NewMetrics(registry)
+	Expect(err).NotTo(HaveOccurred())
+
+	events := record.NewFakeRecorder(32)
+	return observedTelemetry{
+		registry: registry,
+		events:   events,
+		recorder: telemetry.NewRecorder(metrics, events),
+	}
+}
+
+func expectMetricValue(
+	registry *prometheus.Registry,
+	name string,
+	labels map[string]string,
+) {
+	Expect(metricValue(registry, name, labels)).To(Equal(float64(1)))
+}
+
+func metricValue(registry *prometheus.Registry, name string, labels map[string]string) float64 {
+	families, err := registry.Gather()
+	Expect(err).NotTo(HaveOccurred())
+
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			matches := len(metric.GetLabel()) == len(labels)
+			for _, label := range metric.GetLabel() {
+				if labels[label.GetName()] != label.GetValue() {
+					matches = false
+					break
+				}
+			}
+			if matches && metric.GetCounter() != nil {
+				return metric.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+func expectEvent(recorder *record.FakeRecorder, reason string) {
+	Eventually(recorder.Events, time.Second, 50*time.Millisecond).Should(Receive(ContainSubstring(" " + reason + " ")))
+}
+
+func expectNoEvent(recorder *record.FakeRecorder, reason string) {
+	Consistently(func() string {
+		select {
+		case event := <-recorder.Events:
+			return event
+		default:
+			return ""
+		}
+	}, 250*time.Millisecond, 50*time.Millisecond).ShouldNot(ContainSubstring(" " + reason + " "))
+}
+
+func drainEvents(recorder *record.FakeRecorder) {
+	for {
+		select {
+		case <-recorder.Events:
+		default:
+			return
+		}
+	}
+}
+
 func nginxSpec(replicas int32, image string, port int32, config string) examplev1alpha1.NginxDeploymentSpec {
 	return examplev1alpha1.NginxDeploymentSpec{
 		Replicas: &replicas,
@@ -324,13 +524,21 @@ func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deploym
 	Expect(deployment.Spec.Template.Labels).To(Equal(labelsFor(resource)))
 	Expect(deployment.Spec.Template.Annotations).To(HaveKeyWithValue(configHashAnnotation, configHash(nginxConfig(resource))))
 	Expect(deployment.Spec.Template.Spec.SecurityContext).To(Equal(nginxPodSecurityContext()))
+	Expect(deployment.Spec.Template.Spec.RestartPolicy).To(Equal(corev1.RestartPolicyAlways))
+	Expect(deployment.Spec.Template.Spec.TerminationGracePeriodSeconds).To(Equal(new(defaultTerminationGracePeriodSeconds)))
+	Expect(deployment.Spec.Template.Spec.DNSPolicy).To(Equal(corev1.DNSClusterFirst))
+	Expect(deployment.Spec.Template.Spec.SchedulerName).To(Equal(corev1.DefaultSchedulerName))
+	Expect(deployment.Spec.Template.Spec.EnableServiceLinks).To(Equal(new(true)))
 
 	Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 	container := deployment.Spec.Template.Spec.Containers[0]
 	Expect(container.Name).To(Equal(nginxContainerName))
 	Expect(container.Image).To(Equal(nginxImage(resource)))
+	Expect(container.ImagePullPolicy).To(Equal(nginxImagePullPolicy(resource)))
 	Expect(container.SecurityContext).To(Equal(nginxContainerSecurityContext()))
 	Expect(container.Resources).To(Equal(nginxResourceRequirements()))
+	Expect(container.TerminationMessagePath).To(Equal(corev1.TerminationMessagePathDefault))
+	Expect(container.TerminationMessagePolicy).To(Equal(corev1.TerminationMessageReadFile))
 	Expect(container.Ports).To(HaveLen(1))
 	Expect(container.Ports[0].Name).To(Equal("http"))
 	Expect(container.Ports[0].ContainerPort).To(Equal(nginxPort(resource)))
@@ -345,6 +553,7 @@ func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deploym
 	volume := deployment.Spec.Template.Spec.Volumes[0]
 	Expect(volume.Name).To(Equal(nginxConfigVolumeName))
 	Expect(volume.ConfigMap).NotTo(BeNil())
+	Expect(volume.ConfigMap.DefaultMode).To(Equal(new(defaultVolumeMode)))
 	Expect(volume.ConfigMap.Name).To(Equal(resource.Name))
 	Expect(volume.ConfigMap.Items).To(ConsistOf(corev1.KeyToPath{
 		Key:  nginxConfigKey,

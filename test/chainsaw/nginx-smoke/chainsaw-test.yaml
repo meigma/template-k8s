@@ -117,6 +117,8 @@ spec:
                           echo "metrics status: ${status}"
                           if [ "${status}" = "200" ]; then
                             head -n 20 /tmp/metrics.txt
+                            grep -q "template_k8s_nginxdeployment_child_apply_total" /tmp/metrics.txt
+                            grep -q "template_k8s_nginxdeployment_status_transition_total" /tmp/metrics.txt
                             exit 0
                           fi
                           sleep 2
@@ -197,3 +199,19 @@ spec:
               kind: Service
               metadata:
                 name: nginx-sample
+        - script:
+            timeout: 1m
+            content: |
+              set -euo pipefail
+              export KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}"
+              for _ in $(seq 1 30); do
+                reasons="$(kubectl get events -n "$NAMESPACE" \
+                  --field-selector involvedObject.kind=NginxDeployment,involvedObject.name=nginx-sample \
+                  -o jsonpath='{range .items[*]}{.reason}{"\n"}{end}' || true)"
+                case "$reasons" in
+                  *ChildResourcesApplied*|*DeploymentReady*) exit 0 ;;
+                esac
+                sleep 2
+              done
+              kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp
+              exit 1
