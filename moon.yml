@@ -17,88 +17,42 @@ fileGroups:
     - 'test/**/*.go'
     - 'go.mod'
     - 'go.sum'
-  kubebuilderSources:
+  generatorSources:
     - 'api/**/*.go'
     - 'cmd/**/*.go'
     - 'internal/**/*.go'
     - 'PROJECT'
     - 'go.mod'
     - 'go.sum'
-  controllerGenTooling:
-    - '.prototools'
-    - '.moon/proto/controller-gen.toml'
   chartSources:
     - 'charts/template-k8s/**/*'
-  helmTooling:
-    - '.prototools'
-    - '.moon/proto/helm.toml'
   chainsawSources:
     - 'test/chainsaw/**/*.yaml'
-    - 'charts/template-k8s/**/*'
-    - 'Dockerfile'
-  chainsawTooling:
-    - '.prototools'
-    - '.moon/proto/chainsaw.toml'
-  envtestTooling:
-    - '.prototools'
-    - '.moon/proto/setup-envtest.toml'
-  lintConfig:
-    - '.golangci.yml'
-    - '.prototools'
-    - '.moon/proto/golangci-lint.toml'
-  devStackConfig:
-    - '.prototools'
-    - '.moon/proto/ctlptl.toml'
-    - '.moon/proto/helm.toml'
-    - '.moon/proto/kind.toml'
-    - '.moon/proto/ko.toml'
-    - '.moon/proto/kubectl.toml'
-    - '.moon/proto/tilt.toml'
+  devStackSources:
     - '.ko.yaml'
     - '.tiltignore'
     - 'Tiltfile'
     - 'dev/ctlptl.yaml'
     - 'dev/ko-build.sh'
-    - 'dev/stack-smoke.sh'
+  toolchainConfig:
+    - '.prototools'
+    - '.moon/proto/**/*.toml'
 
 workspace:
   inheritedTasks:
     include: []
 
 tasks:
-  manifests:
-    script: |
-      set -euo pipefail
-      controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
-    inputs:
-      - '@group(kubebuilderSources)'
-      - '@group(controllerGenTooling)'
-    outputs:
-      - 'charts/template-k8s/crds/**/*'
-    options:
-      cache: false
-
-  generate:
-    command: 'controller-gen object paths="./..."'
-    inputs:
-      - '@group(kubebuilderSources)'
-      - '@group(controllerGenTooling)'
-    outputs:
-      - 'api/**/zz_generated.deepcopy.go'
-    options:
-      cache: false
-
-  fmt:
-    command: 'go fmt ./...'
+  check:
+    command: 'bash scripts/check.sh'
     inputs:
       - '@group(goSources)'
-    options:
-      cache: false
-
-  vet:
-    command: 'go vet ./...'
-    inputs:
-      - '@group(goSources)'
+      - '@group(generatorSources)'
+      - '@group(chartSources)'
+      - '@group(chainsawSources)'
+      - '@group(toolchainConfig)'
+      - '.golangci.yml'
+      - 'scripts/check.sh'
     options:
       cache: false
 
@@ -106,217 +60,45 @@ tasks:
     script: |
       set -euo pipefail
       KUBEBUILDER_ASSETS="$(setup-envtest use 1.35.x -p path)" go test ./...
-    deps:
-      - 'root:chart-validate'
-      - 'root:manifests'
-      - 'root:generate'
     inputs:
       - '@group(goSources)'
-      - '@group(kubebuilderSources)'
-      - '@group(envtestTooling)'
+      - '@group(generatorSources)'
+      - '@group(toolchainConfig)'
       - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
-      runDepsInParallel: false
 
-  chart-validate:
-    script: |
-      set -euo pipefail
-      chart="charts/template-k8s"
-      package_dir="$(mktemp -d)"
-      trap 'rm -rf "$package_dir"' EXIT
-
-      python3 -m json.tool "$chart/values.schema.json" >/dev/null
-      helm lint "$chart"
-      helm template template-k8s "$chart" --namespace template-k8s-system --include-crds >/dev/null
-      helm install template-k8s "$chart" --namespace template-k8s-system --dry-run=client --server-side=false >/dev/null
-      helm package "$chart" --destination "$package_dir" >/dev/null
-    deps:
-      - 'root:manifests'
-    inputs:
-      - '@group(chartSources)'
-      - '@group(helmTooling)'
-      - '@group(kubebuilderSources)'
-    options:
-      cache: false
-      runDepsInParallel: false
-
-  generated-check:
+  generate:
     script: |
       set -euo pipefail
       controller-gen object paths="./..."
       controller-gen crd paths="./..." output:crd:artifacts:config=charts/template-k8s/crds
-      go test ./test/chart -run TestManagerRBACMatchesControllerGen -count=1
-      git diff --exit-code -- api charts/template-k8s/crds
     inputs:
-      - '@group(kubebuilderSources)'
-      - '@group(controllerGenTooling)'
-    options:
-      cache: false
-      runDepsInParallel: false
-
-  lint:
-    command: 'golangci-lint run --config .golangci.yml ./... --show-stats=false'
-    inputs:
-      - '@group(goSources)'
-      - '@group(lintConfig)'
-    options:
-      cache: false
-
-  lint-fix:
-    command: 'golangci-lint run --config .golangci.yml ./... --fix --show-stats=false'
-    inputs:
-      - '@group(goSources)'
-      - '@group(lintConfig)'
-    options:
-      cache: false
-      runInCI: false
-
-  lint-config:
-    command: 'golangci-lint config verify --config .golangci.yml'
-    inputs:
-      - '@group(lintConfig)'
-    options:
-      cache: false
-
-  chainsaw-lint:
-    script: |
-      set -euo pipefail
-      chainsaw lint configuration --file test/chainsaw/chainsaw-config.yaml
-      find test/chainsaw -name chainsaw-test.yaml -print | while IFS= read -r test_file; do
-        chainsaw lint test --file "$test_file"
-      done
-    inputs:
-      - '@group(chainsawSources)'
-      - '@group(chainsawTooling)'
-    options:
-      cache: false
-
-  build:
-    command: 'go build -o bin/manager ./cmd'
-    deps:
-      - 'root:manifests'
-      - 'root:generate'
-      - 'root:fmt'
-      - 'root:vet'
-    inputs:
-      - '@group(goSources)'
+      - '@group(generatorSources)'
+      - '@group(toolchainConfig)'
     outputs:
-      - 'bin/manager'
-    options:
-      runDepsInParallel: false
-
-  run:
-    command: 'go run ./cmd'
-    deps:
-      - 'root:manifests'
-      - 'root:generate'
-      - 'root:fmt'
-      - 'root:vet'
-    inputs:
-      - '@group(goSources)'
-    options:
-      cache: false
-      runDepsInParallel: false
-      runInCI: false
-
-  docker-build:
-    command: 'bash -c ''docker build -t "${IMG:-controller:latest}" .'''
-    inputs:
-      - 'Dockerfile'
-      - '@group(goSources)'
-    options:
-      cache: false
-      runInCI: false
-
-  install:
-    command: 'kubectl apply -f charts/template-k8s/crds'
-    deps:
-      - 'root:manifests'
-    inputs:
-      - 'charts/template-k8s/crds/**/*'
-    options:
-      cache: false
-      runInCI: false
-
-  uninstall:
-    command: 'kubectl delete --ignore-not-found=true -f charts/template-k8s/crds'
-    deps:
-      - 'root:manifests'
-    inputs:
+      - 'api/**/zz_generated.deepcopy.go'
       - 'charts/template-k8s/crds/**/*'
     options:
       cache: false
       runInCI: false
 
   deploy:
-    script: |
-      set -euo pipefail
-      release="${HELM_RELEASE:-template-k8s}"
-      namespace="${HELM_NAMESPACE:-template-k8s-system}"
-      image="${IMG:-}"
-      kubectl apply -f charts/template-k8s/crds
-      args=(
-        upgrade
-        --install
-        "$release"
-        charts/template-k8s
-        --namespace
-        "$namespace"
-        --create-namespace
-      )
-      if [ -n "$image" ]; then
-        if [[ "$image" == *@* ]]; then
-          args+=(--set-string "image.repository=${image%@*}")
-          args+=(--set-string "image.digest=${image#*@}")
-          args+=(--set-string "image.tag=")
-        else
-          last_segment="${image##*/}"
-          if [[ "$last_segment" == *:* ]]; then
-            args+=(--set-string "image.repository=${image%:*}")
-            args+=(--set-string "image.tag=${image##*:}")
-          else
-            args+=(--set-string "image.repository=$image")
-            args+=(--set-string "image.tag=")
-          fi
-          args+=(--set-string "image.digest=")
-        fi
-      fi
-      if [ "${LOCAL_IMAGE:-false}" = "true" ]; then
-        args+=(--set "image.pullPolicy=IfNotPresent")
-      fi
-      helm "${args[@]}"
-    deps:
-      - 'root:chart-validate'
+    command: 'bash scripts/deploy.sh'
     inputs:
       - '@group(chartSources)'
-      - '@group(helmTooling)'
+      - '@group(toolchainConfig)'
+      - 'scripts/deploy.sh'
     options:
       cache: false
       runInCI: false
 
   undeploy:
-    script: |
-      set -euo pipefail
-      helm uninstall "${HELM_RELEASE:-template-k8s}" --namespace "${HELM_NAMESPACE:-template-k8s-system}" --ignore-not-found
+    command: 'bash scripts/undeploy.sh'
     inputs:
-      - '@group(helmTooling)'
-    options:
-      cache: false
-      runInCI: false
-
-  dev-cluster-up:
-    command: 'ctlptl apply -f dev/ctlptl.yaml'
-    inputs:
-      - '@group(devStackConfig)'
-    options:
-      cache: false
-      runInCI: false
-
-  dev-cluster-down:
-    command: 'ctlptl delete -f dev/ctlptl.yaml --cascade=true --ignore-not-found'
-    inputs:
-      - '@group(devStackConfig)'
+      - '@group(chartSources)'
+      - '@group(toolchainConfig)'
+      - 'scripts/undeploy.sh'
     options:
       cache: false
       runInCI: false
@@ -328,9 +110,10 @@ tasks:
       kubectl config use-context kind-template-k8s-dev >/dev/null
       tilt up --context kind-template-k8s-dev
     inputs:
-      - '@group(devStackConfig)'
+      - '@group(devStackSources)'
       - '@group(chartSources)'
       - '@group(goSources)'
+      - '@group(toolchainConfig)'
     options:
       cache: false
       interactive: true
@@ -345,69 +128,23 @@ tasks:
       fi
       ctlptl delete -f dev/ctlptl.yaml --cascade=true --ignore-not-found
     inputs:
-      - '@group(devStackConfig)'
+      - '@group(devStackSources)'
+      - '@group(toolchainConfig)'
     options:
       cache: false
-      runInCI: false
-
-  dev-stack-smoke:
-    command: 'bash dev/stack-smoke.sh'
-    deps:
-      - 'root:chart-validate'
-      - 'root:generate'
-    inputs:
-      - '@group(devStackConfig)'
-      - '@group(chartSources)'
-      - '@group(goSources)'
-      - 'test/chainsaw/fixtures/example_v1alpha1_nginxdeployment.yaml'
-    options:
-      cache: false
-      runDepsInParallel: false
       runInCI: false
 
   test-e2e:
-    script: |
-      set -euo pipefail
-      kind_bin="${KIND:-kind}"
-      command -v "$kind_bin" >/dev/null
-      cluster="${KIND_CLUSTER:-template-k8s-test-e2e}"
-      manager_image="${IMG:-example.com/template-k8s:v0.0.1}"
-      kubeconfig_dir="$(mktemp -d)"
-      kubeconfig="$kubeconfig_dir/kubeconfig"
-      created=0
-      cleanup() {
-        status="$?"
-        if [ "$created" -eq 1 ]; then
-          "$kind_bin" delete cluster --name "$cluster"
-        fi
-        rm -rf "$kubeconfig_dir"
-        exit "$status"
-      }
-      trap cleanup EXIT
-      if "$kind_bin" get clusters | grep -qx "$cluster"; then
-        echo "Using existing Kind cluster $cluster"
-      else
-        created=1
-        "$kind_bin" create cluster --name "$cluster"
-      fi
-      "$kind_bin" export kubeconfig --name "$cluster" --kubeconfig "$kubeconfig"
-      export KUBECONFIG="$kubeconfig"
-      IMG="$manager_image" moon run root:docker-build
-      "$kind_bin" load docker-image "$manager_image" --name "$cluster"
-      KIND="$kind_bin" KIND_CLUSTER="$cluster" IMG="$manager_image" KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}" \
-        chainsaw test --config test/chainsaw/chainsaw-config.yaml test/chainsaw
-    deps:
-      - 'root:chart-validate'
-      - 'root:manifests'
-      - 'root:generate'
-      - 'root:fmt'
-      - 'root:vet'
+    command: 'bash scripts/test-e2e.sh'
     inputs:
       - '@group(goSources)'
+      - '@group(chartSources)'
       - '@group(chainsawSources)'
-      - '@group(chainsawTooling)'
-      - '@group(helmTooling)'
+      - '@group(toolchainConfig)'
+      - 'Dockerfile'
+      - 'scripts/deploy.sh'
+      - 'scripts/undeploy.sh'
+      - 'scripts/test-e2e.sh'
     options:
       cache: false
-      runDepsInParallel: false
       runInCI: false

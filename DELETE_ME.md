@@ -37,17 +37,16 @@ It is only here to orient the initial project owner.
 Moon is the main entrypoint for local development and CI:
 
 ```sh
-moon ci --summary minimal
+moon run root:check
+moon run root:test
 ```
 
 For operator/API changes, the usual local path is:
 
 ```sh
 moon run root:generate
-moon run root:manifests
+moon run root:check
 moon run root:test
-moon run root:chart-validate
-moon run root:chainsaw-lint
 ```
 
 The e2e smoke path builds the local manager image, loads it into Kind, installs
@@ -121,7 +120,8 @@ that shape, trim the release files before the first release.
 8. Run the full local check set:
 
    ```sh
-   moon ci --summary minimal
+   moon run root:check
+   moon run root:test
    git diff --check
    ```
 
@@ -145,8 +145,8 @@ that shape, trim the release files before the first release.
 - `moon.yml`
   - Update project `title`, `description`, `owner`, and `maintainers`.
   - Update chart paths, release names, namespaces, Kind cluster names, default
-    local image names, generated-check paths, deploy/undeploy paths, and chart
-    validation assertions when the chart or operator name changes.
+    local image names, check paths, deploy/undeploy paths, and chart validation
+    assertions when the chart or operator name changes.
 
 - `README.md`
   - Replace bracketed placeholders with the real project name, API group,
@@ -265,7 +265,7 @@ that shape, trim the release files before the first release.
   - Keep names and labels aligned with the new chart identity.
 
 - `charts/template-k8s/crds/*`
-  - Regenerate with `moon run root:manifests` after API marker changes.
+  - Regenerate with `moon run root:generate` after API marker changes.
   - Do not hand-edit generated CRDs except to diagnose generator output.
 
 ## Release And Repository Automation Checklist
@@ -339,11 +339,8 @@ that shape, trim the release files before the first release.
   - Confirm the local development base image matches the operator's runtime
     expectations.
 
-- `dev/ko-build.sh` and `dev/stack-smoke.sh`
-  - Update the image build entrypoint, namespace names, sample custom resource,
-    Service name, port, and expected HTTP response.
-  - Keep `dev-stack-smoke` local-only and destructive to the dev cluster it
-    creates.
+- `dev/ko-build.sh`
+  - Update the image build entrypoint when the manager package moves.
 
 - `moon.yml`
   - Update `dev-*` task inputs and commands if the generated repository renames
@@ -431,11 +428,8 @@ After the repository is renamed and the real API is in place, run:
 ```sh
 go mod tidy
 moon run root:generate
-moon run root:manifests
+moon run root:check
 moon run root:test
-moon run root:chart-validate
-moon run root:chainsaw-lint
-moon ci --summary minimal
 git diff --check
 ```
 

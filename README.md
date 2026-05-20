@@ -131,17 +131,13 @@ Regenerate code and manifests after API changes:
 
 ```sh
 moon run root:generate
-moon run root:manifests
 ```
 
-Run the normal local checks:
+Run the normal local checks and tests:
 
 ```sh
-moon run root:fmt
-moon run root:vet
+moon run root:check
 moon run root:test
-moon run root:lint
-moon run root:chainsaw-lint
 ```
 
 Run the full local e2e smoke path:
@@ -160,18 +156,6 @@ Stop and delete the local development stack:
 
 ```sh
 moon run root:dev-down
-```
-
-Validate the development stack end to end:
-
-```sh
-moon run root:dev-stack-smoke
-```
-
-Run the full CI task set locally:
-
-```sh
-moon ci --summary minimal
 ```
 
 ## Release
@@ -193,7 +177,7 @@ Before opening a pull request:
 - Keep generated API code and CRDs up to date.
 - Add envtest coverage for API and reconciler behavior.
 - Add or update Chainsaw coverage only for installed-operator behavior.
-- Run `moon ci --summary minimal`.
+- Run `moon run root:check` and `moon run root:test`.
 
 ## Security
 
