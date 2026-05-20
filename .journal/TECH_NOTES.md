@@ -10,7 +10,7 @@
 - Repo-local tools are expected to be on `PATH` through `.envrc` locally and `moonrepo/setup-toolchain` in CI. Moon tasks should call tools directly, such as `golangci-lint`, rather than wrapping them with `proto run`.
 - Linting intentionally avoids custom `golangci-lint` binary builds. The Kubebuilder `logcheck` module plugin was removed in favor of the normal pinned binary and built-in `loggercheck`.
 - Release Dry Run keeps a broad `pull_request` trigger so required check contexts still report on ordinary PRs, but the binary/container dry-run jobs intentionally skip unless the run is manual or the PR head branch starts with `release-please--`.
-- Release Please updates `charts/template-k8s/Chart.yaml`, but Helm chart publication is not wired yet; release workflows still publish binaries and the container image.
+- Release Please updates `charts/template-k8s/Chart.yaml`; the tag release workflow publishes binaries, the multi-platform container image, and the Helm chart as `oci://ghcr.io/meigma/template-k8s/chart`.
 - Repo-local Kubernetes operator lessons live in `.agents/skills/k8s-operator/SKILL.md`.
 - Test layering is intentional: envtest owns the controller/API behavior matrix, including manager-backed watch/predicate/index coverage; Chainsaw owns Kind-backed chart install/runtime smoke and should not duplicate envtest edge cases.
 - Operator-specific observability is intentionally finite-label and injectable: `internal/controller/telemetry` registers NginxDeployment child apply and status transition counters with controller-runtime's metrics registry, and wraps Kubernetes Event emission for aggregated child apply events plus persisted availability condition reason changes.
