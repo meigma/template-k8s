@@ -14,3 +14,9 @@ Goal for the checkpoint: Begin the operator development-flow work by making Tilt
 What changed: Created implementation branch `feat/tilt-dev-flow` at `/Users/josh/code/meigma/template-k8s/.wt/feat-tilt-dev-flow`, added `tilt = "=0.37.3"` to `.prototools`, and added `.moon/proto/tilt.toml` using Tilt's official GitHub release archive/checksum layout.
 Validation: `proto install tilt --quiet` installed the tool successfully, `proto run tilt -- version` reported `v0.37.3, built 2026-04-30`, and `git diff --check` passed. The implementation commit is `53948be` (`chore(proto): add tilt toolchain`).
 Next: Continue building out the local operator development flow on the same branch.
+
+## 2026-05-20 09:46 — Ko proto toolchain
+Goal for the checkpoint: Add `ko` to the same repo-managed Proto toolchain for the operator development flow.
+What changed: Added `ko = "=0.18.1"` to `.prototools` and added `.moon/proto/ko.toml` using the official `ko-build/ko` GitHub release archive/checksum layout.
+Validation: `proto install ko --quiet` installed the tool successfully, `proto run ko -- version` reported `0.18.1`, and `git diff --check` passed. The implementation commit is `90cb640` (`chore(proto): add ko toolchain`).
+Next: Continue building out the Tilt/ko-backed development flow on `feat/tilt-dev-flow`.
