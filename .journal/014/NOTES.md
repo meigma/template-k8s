@@ -18,3 +18,8 @@ Plan: Present a cut list that distinguishes keep, fold, move-to-script, and remo
 Goal for the checkpoint: Implement the user's refinement: remove the dev stack smoke test, introduce one `check` task for static validation, keep `test` separate, and stop exposing `chainsaw-lint` as its own recipe.
 Current state of the world: Work is on `feat/moon-task-slimming` in `.wt/feat-moon-task-slimming`. `moon.yml` is now 150 lines and exposes 8 tasks: `check`, `test`, `generate`, `deploy`, `undeploy`, `dev-up`, `dev-down`, and `test-e2e`. The old dev-stack smoke script is removed. Long deploy/e2e/check bodies moved to `scripts/`. CI now runs `root:check` and `root:test` explicitly.
 Validation: `moon run root:check --summary minimal`, `moon run root:test --summary minimal`, `bash -n scripts/check.sh scripts/deploy.sh scripts/test-e2e.sh scripts/undeploy.sh`, `git diff --check`, stale-reference scan for removed task names, and `moon run root:test-e2e --summary minimal` all passed. The e2e run created and deleted the `template-k8s-test-e2e` Kind cluster.
+
+## 2026-05-20 11:25 — Agent guidance against recipe sprawl
+Goal for the checkpoint: Add a small `AGENTS.md` reminder that discourages future agents from adding many narrowly scoped Moon recipes.
+Current state of the world: Added a short paragraph under Development Workflow saying to keep the Moon task surface small, prefer extending `root:check`, `root:test`, or existing scripts, and only add durable maintainer-facing tasks. Committed on `feat/moon-task-slimming` as `7e2b380` with `docs(agents): discourage Moon recipe sprawl`.
+Validation: `git diff --check` passed for the docs-only change.
