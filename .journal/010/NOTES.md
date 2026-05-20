@@ -42,3 +42,14 @@ Surprises:
 Open threads:
 - Changes are uncommitted on `master`. Pending user direction on whether to land via PR (preferred per `git` skill) or otherwise; nothing branched yet.
 - Likely worth a TECH_NOTES entry once confirmed: "moon 2.0.0-rc.1 hides script-based tasks; pin or upgrade if `moon run root:test` regresses."
+
+## 2026-05-19 22:25 — Close
+PR #23 (`docs(go): document all package identifiers`) was squash-merged at `da11e540e70ff3bff7fa948e1ba32acc06db0307`. `master` is fast-forwarded; the `docs/godoc-sweep` worktree and branch are removed.
+
+CI history on the PR is worth a glance for future agents: the first `ci` run failed because the trailing period I added to `NginxDeployment`'s godoc reshaped the projected CRD `description`, and `root:generated-check` caught the drift. Fixed with a follow-up `chore(crd): regenerate after NginxDeployment godoc tweak` commit on the same branch.
+
+Promoted two durable items into `TECH_NOTES.md` for future agents:
+- moon 2.0.0-rc.1 silently hides every `script:`-based task locally; invoke underlying tools directly until moon is upgraded.
+- Any change to a Kubebuilder API type's godoc must be followed by `moon run root:manifests` before pushing.
+
+No open threads from this session. The moon upgrade is the natural next slice if you want it.

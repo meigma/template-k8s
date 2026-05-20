@@ -10,3 +10,4 @@
 | 006 | 2026-05-19 | Evaluate removing Kustomize | complete | Replaced Kustomize with a centralized Helm chart, removed `config/`, and merged it via PR #13. |
 | 007 | 2026-05-19 | Test boundaries and operator observability | complete | Encoded the envtest/Chainsaw boundary, added manager-backed envtest coverage, and merged operator metrics, events, and reconcile logging via PRs #15 and #16. |
 | 008 | 2026-05-19 | Helm OCI chart release and first published release | complete | Added GHCR OCI chart publishing, sped up release image builds, published `v0.1.1`, and smoke-tested the released chart with the released operator image. |
+| 010 | 2026-05-19 | Godoc sweep across all package identifiers | complete | Added or refined godoc on every public and private type, field, function, and method across the Go source tree and merged it via PR #23. |
