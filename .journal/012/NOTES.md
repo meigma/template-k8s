@@ -24,3 +24,12 @@ Merged the combined Dependabot rollup PR `#25` as `421e7d34c25e9404b9746ec26ad4b
 Dependabot opened a follow-up Gomega PR `#26` after the first rollup landed; it was green and was squash-merged as `56f44009a93c4ba4e0528d5c532c64207f5c7d00`. Dependabot then opened coupled major artifact action PRs `#27` and `#28`; rolled those into PR `#29`, verified `ci`, Kusari, and manual `release-dry-run.yml`, then squash-merged as `df305b2fffc5f75db44a26db8d34393245b6380d` and closed `#27`/`#28`.
 
 Final state: local `master` is fast-forwarded to `df305b2`; the `feat/dependabot-rollup` and `feat/artifact-actions-rollup` worktrees/branches are removed; open Dependabot PR list is empty; Release Please completed successfully after `#25`, `#26`, and `#29`. Non-Dependabot Release Please PR `#22` was left untouched as planned.
+
+## 2026-05-20 08:14 — Release cut start
+Goal for this checkpoint: merge Release Please PR `#22` (`chore(master): release 0.1.2`) and observe the tag-driven release workflow through completion.
+Current state: `master` is clean at `df305b2`. PR `#22` was still open and mergeable, but its branch was behind `master` by five commits, including the dependency rollups. Updated the PR branch before merge so fresh `ci`, Kusari, and Release Dry Run checks run against the current release state.
+
+## 2026-05-20 08:32 — Release 0.1.2 published
+Release Please PR `#22` was squash-merged as `d8916c534901bddbc3a8f57ba32bc8e7ffb1d096` after the refreshed PR checks passed. The merge triggered Release Please run `26172091348`, which passed, created tag `v0.1.2`, and started tag-triggered Release run `26172104921`.
+
+Release run `26172104921` completed successfully: binary assets were built/uploaded and checksum-attested, linux/amd64 and linux/arm64 images were built and smoke-tested, the multi-platform image manifest was published and attested, the Helm chart was pushed and attested, and the inspection summary passed. The draft GitHub release was then published manually per the workflow's inspection handoff. Final release URL: `https://github.com/meigma/template-k8s/releases/tag/v0.1.2`.
