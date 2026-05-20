@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	examplev1alpha1 "github.com/meigma/template-k8s/api/v1alpha1"
+	"github.com/meigma/template-k8s/internal/controller/telemetry"
 )
 
 const (
@@ -28,8 +30,10 @@ const (
 	nginxConfigVolumeName = "nginx-config"
 	configHashAnnotation  = "example.meigma.io/config-hash"
 
-	defaultNginxImage = "nginxinc/nginx-unprivileged:stable"
-	defaultNginxPort  = int32(8080)
+	defaultNginxImage                    = "nginxinc/nginx-unprivileged:stable"
+	defaultNginxPort                     = int32(8080)
+	defaultTerminationGracePeriodSeconds = int64(corev1.DefaultTerminationGracePeriodSeconds)
+	defaultVolumeMode                    = int32(0644)
 
 	conditionAvailable          = "Available"
 	reasonDeploymentReady       = "DeploymentReady"
@@ -40,12 +44,14 @@ const (
 // NginxDeploymentReconciler reconciles a NginxDeployment object
 type NginxDeploymentReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	Telemetry telemetry.Recorder
 }
 
 // +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups=example.meigma.io,resources=nginxdeployments/status,verbs=patch
 // +kubebuilder:rbac:groups="",resources=configmaps;services,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -63,18 +69,36 @@ func (r *NginxDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	config := nginxConfig(instance)
-	if err := r.reconcileConfigMap(ctx, instance, config); err != nil {
-		return ctrl.Result{}, err
-	}
+	childApplies := make([]telemetry.ChildApply, 0, 3)
 
-	deployment, err := r.reconcileDeployment(ctx, instance, config)
+	configMapApply, err := r.reconcileConfigMap(ctx, instance, config)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	childApplies = append(childApplies, telemetry.ChildApply{
+		Resource:  telemetry.ChildResourceConfigMap,
+		Operation: configMapApply,
+	})
 
-	if err := r.reconcileService(ctx, instance); err != nil {
+	deployment, deploymentApply, err := r.reconcileDeployment(ctx, instance, config)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
+	childApplies = append(childApplies, telemetry.ChildApply{
+		Resource:  telemetry.ChildResourceDeployment,
+		Operation: deploymentApply,
+	})
+
+	serviceApply, err := r.reconcileService(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	childApplies = append(childApplies, telemetry.ChildApply{
+		Resource:  telemetry.ChildResourceService,
+		Operation: serviceApply,
+	})
+
+	r.telemetry().RecordChildApplies(instance, childApplies)
 
 	return ctrl.Result{}, r.reconcileStatus(ctx, instance, deployment)
 }
@@ -94,7 +118,7 @@ func (r *NginxDeploymentReconciler) reconcileConfigMap(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
 	config string,
-) error {
+) (controllerutil.OperationResult, error) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.Name,
@@ -102,21 +126,21 @@ func (r *NginxDeploymentReconciler) reconcileConfigMap(
 		},
 	}
 
-	_, err := controllerutil.CreateOrPatch(ctx, r.Client, configMap, func() error {
+	result, err := controllerutil.CreateOrPatch(ctx, r.Client, configMap, func() error {
 		configMap.Labels = labelsFor(instance)
 		configMap.Data = map[string]string{
 			nginxConfigKey: config,
 		}
 		return ctrl.SetControllerReference(instance, configMap, r.Scheme)
 	})
-	return err
+	return result, err
 }
 
 func (r *NginxDeploymentReconciler) reconcileDeployment(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
 	config string,
-) (*appsv1.Deployment, error) {
+) (*appsv1.Deployment, controllerutil.OperationResult, error) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.Name,
@@ -124,7 +148,7 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 		},
 	}
 
-	_, err := controllerutil.CreateOrPatch(ctx, r.Client, deployment, func() error {
+	result, err := controllerutil.CreateOrPatch(ctx, r.Client, deployment, func() error {
 		replicas := nginxReplicas(instance)
 		deployment.Labels = labelsFor(instance)
 		deployment.Spec.Replicas = &replicas
@@ -136,10 +160,15 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 			configHashAnnotation: configHash(config),
 		}
 		deployment.Spec.Template.Spec.SecurityContext = nginxPodSecurityContext()
+		deployment.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyAlways
+		deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = new(defaultTerminationGracePeriodSeconds)
+		deployment.Spec.Template.Spec.DNSPolicy = corev1.DNSClusterFirst
+		deployment.Spec.Template.Spec.SchedulerName = corev1.DefaultSchedulerName
 		deployment.Spec.Template.Spec.Containers = []corev1.Container{
 			{
 				Name:            nginxContainerName,
 				Image:           nginxImage(instance),
+				ImagePullPolicy: nginxImagePullPolicy(instance),
 				SecurityContext: nginxContainerSecurityContext(),
 				Ports: []corev1.ContainerPort{
 					{
@@ -156,7 +185,9 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 						ReadOnly:  true,
 					},
 				},
-				Resources: nginxResourceRequirements(),
+				Resources:                nginxResourceRequirements(),
+				TerminationMessagePath:   corev1.TerminationMessagePathDefault,
+				TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 			},
 		}
 		deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
@@ -164,6 +195,7 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 				Name: nginxConfigVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
+						DefaultMode: new(defaultVolumeMode),
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: instance.Name,
 						},
@@ -177,18 +209,19 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 				},
 			},
 		}
+		deployment.Spec.Template.Spec.EnableServiceLinks = new(true)
 		return ctrl.SetControllerReference(instance, deployment, r.Scheme)
 	})
 	if err != nil {
-		return nil, err
+		return nil, result, err
 	}
-	return deployment, r.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)
+	return deployment, result, r.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)
 }
 
 func (r *NginxDeploymentReconciler) reconcileService(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
-) error {
+) (controllerutil.OperationResult, error) {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.Name,
@@ -196,7 +229,7 @@ func (r *NginxDeploymentReconciler) reconcileService(
 		},
 	}
 
-	_, err := controllerutil.CreateOrPatch(ctx, r.Client, service, func() error {
+	result, err := controllerutil.CreateOrPatch(ctx, r.Client, service, func() error {
 		service.Labels = labelsFor(instance)
 		service.Spec.Type = corev1.ServiceTypeClusterIP
 		service.Spec.Selector = selectorLabelsFor(instance)
@@ -210,7 +243,7 @@ func (r *NginxDeploymentReconciler) reconcileService(
 		}
 		return ctrl.SetControllerReference(instance, service, r.Scheme)
 	})
-	return err
+	return result, err
 }
 
 func (r *NginxDeploymentReconciler) reconcileStatus(
@@ -219,12 +252,38 @@ func (r *NginxDeploymentReconciler) reconcileStatus(
 	deployment *appsv1.Deployment,
 ) error {
 	original := instance.DeepCopy()
+	originalCondition := meta.FindStatusCondition(original.Status.Conditions, conditionAvailable)
 	instance.Status.ReadyReplicas = deployment.Status.ReadyReplicas
 	meta.SetStatusCondition(&instance.Status.Conditions, availableCondition(instance, deployment))
+	currentCondition := meta.FindStatusCondition(instance.Status.Conditions, conditionAvailable)
+	conditionChanged := conditionStateChanged(originalCondition, currentCondition)
 	if equality.Semantic.DeepEqual(original.Status, instance.Status) {
 		return nil
 	}
-	return r.Status().Patch(ctx, instance, client.MergeFrom(original))
+	if err := r.Status().Patch(ctx, instance, client.MergeFrom(original)); err != nil {
+		return err
+	}
+	if conditionChanged && currentCondition != nil {
+		r.telemetry().RecordStatusTransition(instance, *currentCondition)
+	}
+	return nil
+}
+
+func (r *NginxDeploymentReconciler) telemetry() telemetry.Recorder {
+	if r.Telemetry != nil {
+		return r.Telemetry
+	}
+	return telemetry.NoopRecorder()
+}
+
+func conditionStateChanged(previous *metav1.Condition, current *metav1.Condition) bool {
+	if current == nil {
+		return false
+	}
+	if previous == nil {
+		return true
+	}
+	return previous.Status != current.Status || previous.Reason != current.Reason
 }
 
 func availableCondition(
@@ -314,6 +373,20 @@ func nginxImage(instance *examplev1alpha1.NginxDeployment) string {
 		return instance.Spec.Image
 	}
 	return defaultNginxImage
+}
+
+func nginxImagePullPolicy(instance *examplev1alpha1.NginxDeployment) corev1.PullPolicy {
+	image := nginxImage(instance)
+	if strings.Contains(image, "@") {
+		return corev1.PullIfNotPresent
+	}
+
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+	if lastColon <= lastSlash || image[lastColon+1:] == "latest" {
+		return corev1.PullAlways
+	}
+	return corev1.PullIfNotPresent
 }
 
 func nginxReplicas(instance *examplev1alpha1.NginxDeployment) int32 {

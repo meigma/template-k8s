@@ -26,14 +26,21 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - ""
+    resources:
       - configmaps
       - services
     verbs:
+      - create
       - get
       - list
-      - watch
-      - create
       - patch
+      - watch
   - apiGroups:
       - apps
     resources:
