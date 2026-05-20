@@ -13,3 +13,4 @@
 | 009 | 2026-05-19 | Downstream operator template setup guidance | complete | Added the downstream README template, generated-repository `DELETE_ME.md` checklist, and reusable GitHub repository settings tooling via PR #24. |
 | 010 | 2026-05-19 | Godoc sweep across all package identifiers | complete | Added or refined godoc on every public and private type, field, function, and method across the Go source tree and merged it via PR #23. |
 | 011 | 2026-05-20 | Kyverno image verification policy | complete | Added an optional Kyverno image verification policy for the Helm chart and merged it via PR #30 after Kind/Kyverno proof against `v0.1.2`. |
+| 013 | 2026-05-20 | Local operator development stack | complete | Added the Proto-managed ctlptl/Kind/Tilt/ko dev stack, proved it with a full smoke, documented the flow, and merged it via PR #32. |

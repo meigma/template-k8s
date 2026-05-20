@@ -33,3 +33,8 @@ What changed: Added Proto-managed `kind` and `ctlptl`, a `dev/ctlptl.yaml` Kind+
 Validation: `proto install --quiet`, `proto run kind -- version`, `proto run ctlptl -- version`, `proto run tilt -- version`, `proto run ko -- version`, `moon run root:chart-validate`, `moon run root:generate`, `bash -n dev/ko-build.sh dev/stack-smoke.sh`, `git diff --check`, `moon run root:dev-stack-smoke`, and a no-op `moon run root:dev-down` passed. The full smoke created the dev Kind cluster and registry, `tilt ci` built the controller image through ko, the manager Deployment became healthy, the sample `NginxDeployment` and owned Deployment became Available, and the port-forwarded Service returned `hello from template-k8s`.
 Notes: The first smoke run exposed a localhost binding mismatch in the HTTP proof; `dev/stack-smoke.sh` now uses `kubectl port-forward --address localhost` and curls `http://localhost:<port>/`.
 Next: Push/open review or continue refining the development flow as requested.
+
+## 2026-05-20 10:52 — Close
+Merged PR #32 (`feat(dev): add local operator development stack`) via squash as `e38b98899bdba357ad02e17b754bc2d326b78dd6` after user review. Local `master` is fast-forwarded to the merge commit, GitHub CI and Kusari Inspector passed on the final PR commit, and the `feat/tilt-dev-flow` worktree was removed.
+
+Closeout artifacts written: `.journal/013/SUMMARY.md`, an `INDEX.md` row for session 013, and a compact `TECH_NOTES.md` entry covering the Proto-managed `ctlptl`/Kind/Tilt/ko development stack.
