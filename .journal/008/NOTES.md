@@ -32,3 +32,9 @@ Goal for the session: Check the latest `../template-go` commit and apply the sam
 Current state of the world: `../template-go` latest commit `58fb137 ci(release): extract GitHub release scripts (#14)` extracted the GoReleaser asset staging logic into `.github/scripts/`. Ported that pattern into `feat/helm-oci-chart-release` as `.github/scripts/stage_release_assets.py` with focused unit tests, while intentionally omitting the template-go `ghd.toml` validation because `template-k8s` no longer has a `ghd` distribution contract. Updated `release.yml` to call the script. Implementation commit: `e335aa6 ci(release): extract release asset staging`.
 Validation: `python3 .github/scripts/test_stage_release_assets.py`, `actionlint .github/workflows/*.yml`, `git diff --check`, and a direct run of the new script against the local GoReleaser dry-run `dist/artifacts.json` all passed.
 Plan: Keep the branch ready for release-dry-run validation after merge.
+
+## 2026-05-19 19:21 — PR #19 merge
+Goal for the session: Open and merge the Helm OCI release workflow PR after CI is green.
+Current state of the world: Opened PR #19, `ci(release): publish helm chart to ghcr`, from `feat/helm-oci-chart-release`. PR checks completed successfully: `ci` passed, Kusari Inspector passed, and the Release Dry Run jobs skipped as expected for a non-Release-Please PR. Squash-merged the PR into `master` as `d9de742 ci(release): publish helm chart to ghcr (#19)`.
+Cleanup: Deleted the remote feature branch after the `gh pr merge --delete-branch` local cleanup step hit the known separate-worktree `master` checkout issue, fast-forwarded the main checkout to `origin/master`, and removed the Worktrunk feature worktree.
+Plan: Next release-readiness step is a manual `Release Dry Run` workflow run from `master` before the first test release.
