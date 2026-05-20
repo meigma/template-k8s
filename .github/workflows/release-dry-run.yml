@@ -120,13 +120,83 @@ jobs:
           fi
           test -s /tmp/template-k8s-help.txt
 
+  container-image-platform-dry-run:
+    name: Container Image Platform Dry Run (${{ matrix.platform }})
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve dry-run metadata
+        id: dry-run
+        env:
+          DRY_RUN_VERSION: 0.0.0-dryrun.${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          echo "version=${DRY_RUN_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "date=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Build platform OCI archive
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: .
+          push: false
+          platforms: ${{ matrix.platform }}
+          outputs: type=oci,dest=/tmp/template-k8s-dry-run-${{ matrix.arch }}.oci
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=template-k8s-release-dry-run-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run-${{ matrix.arch }}
+          build-args: |
+            VERSION=${{ steps.dry-run.outputs.version }}
+            COMMIT=${{ steps.dry-run.outputs.commit }}
+            DATE=${{ steps.dry-run.outputs.date }}
+            SOURCE=https://github.com/${{ github.repository }}
+
+      - name: Validate platform OCI archive
+        run: test -s /tmp/template-k8s-dry-run-${{ matrix.arch }}.oci
+
   container-image-dry-run:
     name: Container Image Dry Run
-    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
+    needs:
+      - container-image-platform-dry-run
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--')) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
+      - name: Check platform dry-run result
+        env:
+          PLATFORM_RESULT: ${{ needs.container-image-platform-dry-run.result }}
+        run: |
+          set -euo pipefail
+
+          if [ "$PLATFORM_RESULT" != "success" ]; then
+            echo "container platform dry-run result was $PLATFORM_RESULT" >&2
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -154,8 +224,8 @@ jobs:
           load: true
           platforms: linux/amd64
           tags: template-k8s:dry-run
-          cache-from: type=gha,scope=template-k8s-release-dry-run
-          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run
+          cache-from: type=gha,scope=template-k8s-release-dry-run-amd64
+          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run-amd64
           build-args: |
             VERSION=${{ steps.dry-run.outputs.version }}
             COMMIT=${{ steps.dry-run.outputs.commit }}
@@ -174,27 +244,6 @@ jobs:
             exit "$rc"
           fi
           test -s /tmp/template-k8s-image-help.txt
-
-      - name: Build multi-platform image without publishing
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
-        with:
-          context: .
-          push: false
-          platforms: linux/amd64,linux/arm64
-          outputs: type=oci,dest=/tmp/template-k8s-dry-run.oci
-          tags: ghcr.io/meigma/template-k8s:v${{ steps.dry-run.outputs.version }}
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha,scope=template-k8s-release-dry-run
-          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run
-          build-args: |
-            VERSION=${{ steps.dry-run.outputs.version }}
-            COMMIT=${{ steps.dry-run.outputs.commit }}
-            DATE=${{ steps.dry-run.outputs.date }}
-            SOURCE=https://github.com/${{ github.repository }}
-
-      - name: Validate multi-platform OCI archive
-        run: test -s /tmp/template-k8s-dry-run.oci
 
   helm-chart-dry-run:
     name: Helm Chart Dry Run
