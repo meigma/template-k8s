@@ -20,3 +20,9 @@ Goal for the checkpoint: Add `ko` to the same repo-managed Proto toolchain for t
 What changed: Added `ko = "=0.18.1"` to `.prototools` and added `.moon/proto/ko.toml` using the official `ko-build/ko` GitHub release archive/checksum layout.
 Validation: `proto install ko --quiet` installed the tool successfully, `proto run ko -- version` reported `0.18.1`, and `git diff --check` passed. The implementation commit is `90cb640` (`chore(proto): add ko toolchain`).
 Next: Continue building out the Tilt/ko-backed development flow on `feat/tilt-dev-flow`.
+
+## 2026-05-20 09:52 — Tilt ko kind assessment
+Goal for the checkpoint: Research whether Tilt + ko + Kind is the right foundation for this template's local operator development flow.
+Findings: The best first prototype is a root `Tiltfile` that renders the existing Helm chart with Tilt's `helm()`/`k8s_yaml()` path, uses `ko` as a Tilt custom image builder for `./cmd`, and runs against a Kind cluster with a discoverable local registry. Avoid making `ko apply` own deployment because it bypasses Tilt's strongest resource graph and image injection behavior, and avoid `kind load` for iterative development because Tilt falls back to that slower path when it cannot find a local registry.
+Repo fit: The chart already exposes image repository/tag/digest and pull policy controls, `moon.yml` already has Kind/Chainsaw e2e proof, and the current Dockerfile is not essential for local Go operator loops once ko is introduced. The missing pieces are repo-managed Kind/registry setup, a `Tiltfile`, likely `.tiltignore`, and possibly `.ko.yaml` if the dev image needs to mirror release base/platform choices.
+Next: Prototype a small Tiltfile plus Kind local-registry setup, then prove that Go source changes rebuild with ko and roll the manager Deployment in Kind.
