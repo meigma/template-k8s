@@ -10,6 +10,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// main is the manager entrypoint. It parses command-line options, wires the
+// controller-runtime logger, constructs the manager, registers controllers and
+// health checks, and blocks until the manager stops.
 func main() {
 	options := mustParseManagerOptions(os.Args[1:])
 	ctrl.SetLogger(mustNewControllerLogger(options, os.Stderr))

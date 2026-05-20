@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewTLSOptions checks that newTLSOptions disables HTTP/2 by default and
+// respects the EnableHTTP2 opt-in.
 func TestNewTLSOptions(t *testing.T) {
 	t.Run("disables HTTP/2 by default", func(t *testing.T) {
 		tlsOpts := newTLSOptions(managerOptions{})
@@ -26,6 +28,8 @@ func TestNewTLSOptions(t *testing.T) {
 	})
 }
 
+// TestNewWebhookServerOptions verifies that explicit webhook certificate
+// flags are propagated into the controller-runtime webhook options.
 func TestNewWebhookServerOptions(t *testing.T) {
 	tlsOpts := []func(*tls.Config){func(*tls.Config) {}}
 	options := managerOptions{
@@ -42,6 +46,9 @@ func TestNewWebhookServerOptions(t *testing.T) {
 	assert.Equal(t, "webhook.key", got.KeyName)
 }
 
+// TestNewMetricsServerOptions covers both secure and insecure metrics server
+// configurations, confirming that authn/authz filtering is only applied when
+// MetricsSecure is set.
 func TestNewMetricsServerOptions(t *testing.T) {
 	tlsOpts := []func(*tls.Config){func(*tls.Config) {}}
 
@@ -80,6 +87,9 @@ func TestNewMetricsServerOptions(t *testing.T) {
 	})
 }
 
+// TestNewManagerOptions exercises newManagerOptions end to end, confirming
+// that command-line flags propagate into the controller-runtime Options that
+// drive manager construction.
 func TestNewManagerOptions(t *testing.T) {
 	options, err := parseManagerOptions([]string{
 		"--health-probe-bind-address=:9091",

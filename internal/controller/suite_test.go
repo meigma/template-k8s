@@ -32,6 +32,9 @@ var (
 	k8sClient client.Client
 )
 
+// TestControllers is the Go test entrypoint for the controller envtest suite.
+// It hands control to Ginkgo so the BDD-style Describe blocks below run as
+// subtests under `go test`.
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -78,14 +81,16 @@ var _ = AfterSuite(func() {
 	}, time.Minute, time.Second).Should(Succeed())
 })
 
-// getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
-// ENVTEST-based tests depend on specific binaries, usually located in paths set by
-// controller-runtime. When running tests directly (e.g., via an IDE) without using
-// Makefile targets, the 'BinaryAssetsDirectory' must be explicitly configured.
+// getFirstFoundEnvTestBinaryDir locates the first envtest binary directory
+// under bin/k8s. ENVTEST-based tests depend on specific Kubernetes binaries,
+// usually located in paths controller-runtime sets up. When running tests
+// directly (for example, via an IDE) without using the standard task runner,
+// 'BinaryAssetsDirectory' must be explicitly configured.
 //
-// This function streamlines the process by finding the required binaries, similar to
-// setting the 'KUBEBUILDER_ASSETS' environment variable. Prefer running tests through
-// `moon run root:test`, which configures the envtest assets for this repository.
+// This function streamlines that case by finding the required binaries,
+// similar to setting the 'KUBEBUILDER_ASSETS' environment variable. Prefer
+// running tests through `moon run root:test`, which already configures the
+// envtest assets for this repository.
 func getFirstFoundEnvTestBinaryDir() string {
 	basePath := filepath.Join("..", "..", "bin", "k8s")
 	entries, err := os.ReadDir(basePath)

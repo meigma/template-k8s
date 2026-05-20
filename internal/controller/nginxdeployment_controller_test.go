@@ -348,6 +348,10 @@ var _ = Describe("NginxDeployment Controller", func() {
 	})
 })
 
+// startControllerManager boots a controller-runtime manager backed by the
+// envtest API server, registers the NginxDeployment reconciler, and tears the
+// manager down when the surrounding Ginkgo node completes. It is the seam
+// that lets envtest exercise .For/.Owns watches end to end.
 func startControllerManager() {
 	testCtx, stop := context.WithCancel(context.Background())
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -373,12 +377,24 @@ func startControllerManager() {
 	})
 }
 
+// observedTelemetry bundles the test doubles used to assert that the
+// controller emits the expected metrics and Kubernetes Events.
 type observedTelemetry struct {
+	// registry is the Prometheus registry the metrics under test are
+	// scraped from in assertions.
 	registry *prometheus.Registry
-	events   *record.FakeRecorder
+
+	// events is the fake event recorder used to receive emitted Events.
+	events *record.FakeRecorder
+
+	// recorder is the production Recorder wired against registry and events
+	// so the controller treats it as a real telemetry sink.
 	recorder telemetry.Recorder
 }
 
+// newTelemetryReconciler builds a NginxDeploymentReconciler wired against a
+// freshly created observedTelemetry so each spec gets an isolated registry
+// and event recorder.
 func newTelemetryReconciler() (*NginxDeploymentReconciler, observedTelemetry) {
 	observed := newObservedTelemetry()
 	return &NginxDeploymentReconciler{
@@ -388,6 +404,8 @@ func newTelemetryReconciler() (*NginxDeploymentReconciler, observedTelemetry) {
 	}, observed
 }
 
+// newObservedTelemetry constructs the metric and event test doubles plus the
+// production Recorder shim that ties them together.
 func newObservedTelemetry() observedTelemetry {
 	registry := prometheus.NewRegistry()
 	metrics, err := telemetry.NewMetrics(registry)
@@ -401,6 +419,8 @@ func newObservedTelemetry() observedTelemetry {
 	}
 }
 
+// expectMetricValue asserts that the named counter with the supplied label set
+// has been incremented exactly once during the current spec.
 func expectMetricValue(
 	registry *prometheus.Registry,
 	name string,
@@ -409,6 +429,9 @@ func expectMetricValue(
 	Expect(metricValue(registry, name, labels)).To(Equal(float64(1)))
 }
 
+// metricValue scans the registry for the named counter matching the supplied
+// label set and returns its current value, or 0 when no matching sample is
+// present.
 func metricValue(registry *prometheus.Registry, name string, labels map[string]string) float64 {
 	families, err := registry.Gather()
 	Expect(err).NotTo(HaveOccurred())
@@ -433,10 +456,14 @@ func metricValue(registry *prometheus.Registry, name string, labels map[string]s
 	return 0
 }
 
+// expectEvent waits up to one second for an event whose reason matches the
+// supplied string to arrive on the fake recorder.
 func expectEvent(recorder *record.FakeRecorder, reason string) {
 	Eventually(recorder.Events, time.Second, 50*time.Millisecond).Should(Receive(ContainSubstring(" " + reason + " ")))
 }
 
+// expectNoEvent asserts that no event with the supplied reason arrives during
+// a short observation window.
 func expectNoEvent(recorder *record.FakeRecorder, reason string) {
 	Consistently(func() string {
 		select {
@@ -448,6 +475,8 @@ func expectNoEvent(recorder *record.FakeRecorder, reason string) {
 	}, 250*time.Millisecond, 50*time.Millisecond).ShouldNot(ContainSubstring(" " + reason + " "))
 }
 
+// drainEvents removes all currently buffered events from the fake recorder so
+// the next assertion only observes events emitted after the call.
 func drainEvents(recorder *record.FakeRecorder) {
 	for {
 		select {
@@ -458,6 +487,9 @@ func drainEvents(recorder *record.FakeRecorder) {
 	}
 }
 
+// nginxSpec is a small builder that returns a fully populated
+// NginxDeploymentSpec so individual specs can stay focused on the behaviour
+// they assert.
 func nginxSpec(replicas int32, image string, port int32, config string) examplev1alpha1.NginxDeploymentSpec {
 	return examplev1alpha1.NginxDeploymentSpec{
 		Replicas: &replicas,
@@ -467,6 +499,9 @@ func nginxSpec(replicas int32, image string, port int32, config string) examplev
 	}
 }
 
+// createNginxDeployment creates an NginxDeployment in the test namespace and
+// registers a cleanup so the resource and its owned children are deleted at
+// the end of the surrounding Ginkgo node.
 func createNginxDeployment(
 	ctx context.Context,
 	name string,
@@ -484,6 +519,9 @@ func createNginxDeployment(
 	return resource
 }
 
+// cleanupNginxDeployment deletes the parent NginxDeployment together with the
+// child Deployment, Service, and ConfigMap, ignoring NotFound errors so the
+// helper is safe to run after a test already removed some resources.
 func cleanupNginxDeployment(ctx context.Context, key types.NamespacedName) {
 	objects := []client.Object{
 		&examplev1alpha1.NginxDeployment{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}},
@@ -497,6 +535,8 @@ func cleanupNginxDeployment(ctx context.Context, key types.NamespacedName) {
 	}
 }
 
+// reconcileResource runs one Reconcile against the supplied resource and
+// fails the surrounding spec if the reconciler returns an error.
 func reconcileResource(
 	ctx context.Context,
 	controllerReconciler *NginxDeploymentReconciler,
@@ -508,6 +548,8 @@ func reconcileResource(
 	Expect(err).NotTo(HaveOccurred())
 }
 
+// expectConfigMap asserts that the same-named ConfigMap exists, is owned by
+// the resource, and contains the expected nginx config payload.
 func expectConfigMap(resource *examplev1alpha1.NginxDeployment, config string) {
 	configMap := &corev1.ConfigMap{}
 	Expect(k8sClient.Get(context.Background(), objectKeyFor(resource), configMap)).To(Succeed())
@@ -515,6 +557,10 @@ func expectConfigMap(resource *examplev1alpha1.NginxDeployment, config string) {
 	Expect(configMap.Data).To(HaveKeyWithValue(nginxConfigKey, config))
 }
 
+// expectDeployment asserts that the same-named Deployment exists, is owned by
+// the resource, and matches the template fields the reconciler is expected to
+// stamp (labels, selector, security context, container shape, volumes). It
+// returns the fetched Deployment so callers can layer additional checks.
 func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deployment {
 	deployment := fetchDeployment(context.Background(), objectKeyFor(resource))
 	expectManagedObject(deployment, resource)
@@ -562,6 +608,9 @@ func expectDeployment(resource *examplev1alpha1.NginxDeployment) *appsv1.Deploym
 	return deployment
 }
 
+// expectService asserts that the same-named ClusterIP Service exists, is
+// owned by the resource, and exposes the expected port using the http named
+// target port.
 func expectService(resource *examplev1alpha1.NginxDeployment, port int32) {
 	service := &corev1.Service{}
 	Expect(k8sClient.Get(context.Background(), objectKeyFor(resource), service)).To(Succeed())
@@ -575,6 +624,9 @@ func expectService(resource *examplev1alpha1.NginxDeployment, port int32) {
 	Expect(service.Spec.Ports[0].Protocol).To(Equal(corev1.ProtocolTCP))
 }
 
+// expectManagedObject asserts that object carries the labels stamped by the
+// reconciler and an owner reference back to the supplied NginxDeployment
+// with the controller flag set.
 func expectManagedObject(object metav1.Object, owner *examplev1alpha1.NginxDeployment) {
 	Expect(object.GetLabels()).To(Equal(labelsFor(owner)))
 	for _, reference := range object.GetOwnerReferences() {
@@ -590,6 +642,9 @@ func expectManagedObject(object metav1.Object, owner *examplev1alpha1.NginxDeplo
 	Fail(fmt.Sprintf("expected %s to be owned by %s", object.GetName(), owner.Name))
 }
 
+// expectAvailableCondition asserts that the Available condition is present
+// on the resource with the supplied status, reason, and an observedGeneration
+// matching the parent's generation.
 func expectAvailableCondition(
 	resource *examplev1alpha1.NginxDeployment,
 	status metav1.ConditionStatus,
@@ -602,6 +657,8 @@ func expectAvailableCondition(
 	Expect(condition.ObservedGeneration).To(Equal(resource.Generation))
 }
 
+// fetchNginxDeployment reads the NginxDeployment at key and fails the spec if
+// the Get returns an error.
 func fetchNginxDeployment(
 	ctx context.Context,
 	key types.NamespacedName,
@@ -611,12 +668,16 @@ func fetchNginxDeployment(
 	return resource
 }
 
+// fetchDeployment reads the same-named Deployment for the supplied key and
+// fails the spec if the Get returns an error.
 func fetchDeployment(ctx context.Context, key types.NamespacedName) *appsv1.Deployment {
 	deployment := &appsv1.Deployment{}
 	Expect(k8sClient.Get(ctx, key, deployment)).To(Succeed())
 	return deployment
 }
 
+// objectKeyFor returns the NamespacedName used to look up the resource and
+// every same-named child object.
 func objectKeyFor(instance *examplev1alpha1.NginxDeployment) types.NamespacedName {
 	return types.NamespacedName{
 		Name:      instance.Name,
