@@ -1,88 +1,175 @@
-# template-k8s
+# <operator-name>
 
-`template-k8s` is the Meigma starter for Kubernetes operator projects.
+`<operator-name>` is a Kubernetes operator for `<managed system or workload>`.
+It reconciles `<Kind>` custom resources into `<owned Kubernetes resources or
+external system state>` and reports current state through Kubernetes status
+conditions.
 
-This first slice only wires the local operator-development toolchain. It pins
-Kubebuilder through Proto and lets direnv activate the repo environment when
-you enter the checkout.
+Replace bracketed placeholders before publishing this README.
 
-## Local Environment
+## Contents
 
-Prerequisites:
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Release](#release)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
-- [proto](https://moonrepo.dev/proto)
-- [direnv](https://direnv.net/)
+## Features
 
-Enable the environment:
+- Reconciles `<api-group>/<version>` `<Kind>` resources.
+- Manages `<owned resources, external resources, or integration points>`.
+- Publishes operator status with Kubernetes conditions and Events.
+- Ships a controller image and Helm chart for cluster installation.
+
+## Prerequisites
+
+- Go, Kubebuilder tooling, controller-gen, setup-envtest, Helm, kubectl, and
+  Chainsaw from the repository toolchain.
+- Docker or another container runtime for local image builds.
+- A Kubernetes cluster for deployed testing. Kind is recommended for local e2e
+  checks.
+
+Enable the pinned local toolchain:
 
 ```sh
 direnv allow
 proto status
 ```
 
-The local toolchain is pinned in `.prototools` and installed through repo-local
-Proto plugins under `.moon/proto/`.
+## Installation
 
-Current tools:
-
-- Kubebuilder
-- golangci-lint
-- controller-gen
-- setup-envtest
-- kubectl
-- Helm
-- Chainsaw
-
-Quick smoke checks:
+Install the released Helm chart:
 
 ```sh
-kubebuilder version
-golangci-lint version
-controller-gen --version
-setup-envtest version
-kubectl version --client=true
-helm version --short
-chainsaw version
+helm install <release-name> oci://ghcr.io/<org>/<repo>/chart \
+  --version <version> \
+  --namespace <namespace> \
+  --create-namespace
 ```
 
-## Starter Operator
-
-The current scaffold is a Kubebuilder `go/v4` operator with one prototype API:
-
-- group: `example.meigma.io`
-- version: `v1alpha1`
-- kind: `NginxDeployment`
-
-The first prototype target is a minimal nginx deployment operator. Each
-`NginxDeployment` reconciles to an owned ConfigMap, Deployment, and ClusterIP
-Service, with Deployment readiness projected back into status.
-
-Because this prototype names child resources after the custom resource, a
-`NginxDeployment` name must be a Service-safe DNS label no longer than 63
-characters. Inline nginx config is capped at 64 KiB before it is copied into an
-owned ConfigMap.
-
-## Moon Tasks
-
-Moon is the template task front door:
+Install from a local checkout:
 
 ```sh
-moon run root:manifests
+moon run root:deploy
+```
+
+Useful local deployment overrides:
+
+```sh
+HELM_RELEASE=<release-name> HELM_NAMESPACE=<namespace> moon run root:deploy
+IMG=ghcr.io/<org>/<repo>:<tag> moon run root:deploy
+LOCAL_IMAGE=true IMG=<local-image>:<tag> moon run root:deploy
+```
+
+Uninstall the local deployment:
+
+```sh
+moon run root:undeploy
+```
+
+## Usage
+
+Create a custom resource:
+
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: <api-group>/<version>
+kind: <Kind>
+metadata:
+  name: example
+  namespace: <namespace>
+spec:
+  # Add the fields this operator reconciles.
+EOF
+```
+
+Inspect the reconciled resource and its status:
+
+```sh
+kubectl get <resource-plural> example -n <namespace> -o yaml
+kubectl describe <resource-plural> example -n <namespace>
+```
+
+Describe the expected spec fields, owned resources, and status conditions here
+after the project defines its API contract.
+
+## Configuration
+
+Runtime configuration is exposed through the Helm chart values in
+`charts/<chart-directory>/values.yaml`.
+
+Common settings to document for this operator:
+
+- Controller image repository, tag, or digest.
+- Resource requests and limits.
+- Metrics and health probe settings.
+- Leader election settings.
+- Any provider credentials, watched namespaces, or external service endpoints.
+
+## Development
+
+Regenerate code and manifests after API changes:
+
+```sh
 moon run root:generate
+moon run root:manifests
+```
+
+Run the normal local checks:
+
+```sh
 moon run root:fmt
 moon run root:vet
 moon run root:test
 moon run root:lint
-moon run root:lint-fix
-moon run root:lint-config
 moon run root:chainsaw-lint
-moon run root:build
-moon run root:run
+```
+
+Run the full local e2e smoke path:
+
+```sh
 moon run root:test-e2e
 ```
 
-These tasks are the Moon equivalents of Kubebuilder's generated `make manifests`
-and `make generate` targets plus the basic Go format, vet, envtest, lint,
-build, local run, and Kind-backed e2e smoke paths. The e2e task builds the local
-manager image, loads it into Kind, and runs the Chainsaw smoke tests in
-`test/chainsaw/`. They use tools from the activated Proto-managed environment.
+Run the full CI task set locally:
+
+```sh
+moon ci --summary minimal
+```
+
+## Release
+
+Releases publish the controller binaries, container image, and Helm chart. Use
+the release workflow and Release Please configuration in this repository as the
+source of truth for versioning and publication.
+
+Install released charts from:
+
+```text
+oci://ghcr.io/<org>/<repo>/chart
+```
+
+## Contributing
+
+Before opening a pull request:
+
+- Keep generated API code and CRDs up to date.
+- Add envtest coverage for API and reconciler behavior.
+- Add or update Chainsaw coverage only for installed-operator behavior.
+- Run `moon ci --summary minimal`.
+
+## Security
+
+Report security issues through the project's private disclosure process. Do not
+open public issues for vulnerabilities until maintainers have had a chance to
+triage them.
+
+## License
+
+TODO: Add the project's license name and license file before publishing.
