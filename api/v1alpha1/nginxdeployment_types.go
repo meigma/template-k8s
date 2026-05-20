@@ -90,9 +90,3 @@ type NginxDeploymentList struct {
 	// Items holds the NginxDeployment resources returned in this list.
 	Items []NginxDeployment `json:"items"`
 }
-
-// init registers NginxDeployment and NginxDeploymentList with the package SchemeBuilder so
-// they are added to a runtime scheme alongside the rest of the v1alpha1 API group.
-func init() {
-	SchemeBuilder.Register(&NginxDeployment{}, &NginxDeploymentList{})
-}
