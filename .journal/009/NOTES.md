@@ -25,3 +25,8 @@ Goal for the checkpoint: add a root `DELETE_ME.md` modeled after `template-go` b
 Current state of the world: added `DELETE_ME.md` on `feat/github-repo-settings` with sections for template purpose, provided baseline, first setup checklist, project identity, API/reconciler replacement, Helm manifests, release/repository automation, tests/samples, agent guidance, artifact shape choices, final validation, and cleanup.
 Validation: ran `git diff --check`; searched `DELETE_ME.md` for intentional `template-k8s`, `NginxDeployment`, `example.meigma.io`, and `nginx` references; confirmed the planned file groups are represented and no trailing whitespace exists.
 Plan: leave the implementation branch uncommitted until the next instruction.
+
+## 2026-05-19 22:34 — Close
+PR #24 (`docs: add downstream operator setup guidance`) was squash-merged at `8b9bd5fbf17c19b3adc3089eaa0679ba0dea3215`. Local `master` was fast-forwarded to the merge commit, the `feat/github-repo-settings` Worktrunk worktree was removed, and the remote branch was deleted.
+
+Handoff state: `master` is clean and current with `origin/master`. The session landed the downstream README template, root `DELETE_ME.md`, `.github/repository-settings.toml`, and `.github/scripts/configure_github_repo.py`. `SUMMARY.md` and `INDEX.md` now record this session; `TECH_NOTES.md` notes the new downstream README/DELETE_ME contract and that the repository settings file is copied from `template-go` but not yet operator-customized.
