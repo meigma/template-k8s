@@ -476,7 +476,14 @@ jobs:
 
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry for Docker clients
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Log in to GitHub Container Registry for Helm
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
@@ -485,16 +492,31 @@ jobs:
         id: push-chart
         env:
           CHART_ARCHIVE: ${{ steps.package-chart.outputs.archive }}
+          RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
         run: |
           set -euo pipefail
 
+          set +e
           push_output="$(helm push "$CHART_ARCHIVE" "$CHART_REPOSITORY" 2>&1)"
+          push_rc="$?"
+          set -e
           printf '%s\n' "$push_output"
 
-          digest="$(printf '%s\n' "$push_output" | awk '/^Digest: / { print $2; exit }')"
+          if [ "$push_rc" -eq 0 ]; then
+            digest="$(printf '%s\n' "$push_output" | awk '/^Digest: / { print $2; exit }')"
+          else
+            echo "helm push failed; trying to resolve an already-published chart digest" >&2
+            show_output="$(helm show chart "$CHART_REF" --version "$RELEASE_VERSION" 2>&1)"
+            printf '%s\n' "$show_output"
+            digest="$(printf '%s\n' "$show_output" | awk '/^Digest: / { print $2; exit }')"
+          fi
+
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "could not resolve chart digest from helm push output" >&2
-            exit 1
+            echo "could not resolve chart digest from helm output" >&2
+            if [ "$push_rc" -eq 0 ]; then
+              exit 1
+            fi
+            exit "$push_rc"
           fi
 
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
