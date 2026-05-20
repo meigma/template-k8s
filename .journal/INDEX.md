@@ -8,3 +8,4 @@
 | 004 | 2026-05-19 | Manager CLI and startup refactor | complete | Replaced generated flag/zap startup with Kong plus `slog`, streamlined manager wiring, and merged it via PR #11. |
 | 005 | 2026-05-19 | Operator guidance and repo-local tooling refresh | complete | Refreshed agent/operator guidance, tracked repo-local skills, removed stale artifacts, and simplified lint tooling via PR #12. |
 | 006 | 2026-05-19 | Evaluate removing Kustomize | complete | Replaced Kustomize with a centralized Helm chart, removed `config/`, and merged it via PR #13. |
+| 007 | 2026-05-19 | Test boundaries and operator observability | complete | Encoded the envtest/Chainsaw boundary, added manager-backed envtest coverage, and merged operator metrics, events, and reconcile logging via PRs #15 and #16. |

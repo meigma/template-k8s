@@ -43,3 +43,8 @@ Verification: `gh pr checks 16` reports `ci` and `Kusari Inspector` passing. Bin
 Goal for the session: Add appropriately quiet controller-loop logging to the observability PR.
 Current state of the world: PR #16 now includes reconcile logging on `feat/operator-observability` at `1b87aa35fc42ecaa326822c92c24fbb21690a169`. The controller logs real child apply side effects and persisted availability condition transitions at info level, while reconcile lifecycle, deleted-object ignores, no-op child applies, and status patches without condition status/reason changes are behind `V(1)`.
 Verification: `moon run root:test`, `moon run root:lint`, `moon ci --summary minimal`, and `git diff --check` passed in the feature worktree after the logging change. Remote PR checks report `ci` and `Kusari Inspector` passing; binary and container release dry-runs are skipped by the existing release-branch gating policy.
+
+## 2026-05-19 18:00 — Close
+Goal for the session: Close journal session 007 after landing the approved work.
+Current state of the world: PR #15 was squash-merged as `750470cb4eae9b4035c4428cdc2d5d2c95f45523` and PR #16 was squash-merged as `93278412e61a5bb597f66875e60827d9178d2e0b`. Local `master` is fast-forwarded to `9327841`, the `feat/operator-observability` Worktrunk worktree and local branch were removed, and the remote feature branch was deleted explicitly after `gh pr merge --delete-branch` could not delete the branch while its local worktree existed.
+Verification: The final merged state is clean on `master...origin/master`. Session artifacts were written in `.journal/007/SUMMARY.md` and `.journal/INDEX.md`; `.journal/TECH_NOTES.md` already contained the durable observability and logging notes from the session.
