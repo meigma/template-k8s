@@ -53,6 +53,28 @@ Use `root:test` for Go tests because it sets `KUBEBUILDER_ASSETS` through
 `setup-envtest`. Do not rely on plain `go test ./...` unless envtest assets are
 already configured.
 
+## Local Development Stack
+
+Use the local dev stack when you need a fast operator feedback loop in Kind.
+Run it through Moon from the repo root:
+
+```sh
+direnv allow
+moon run root:dev-up
+moon run root:dev-down
+```
+
+`ctlptl` owns the Kind cluster and local registry described in
+`dev/ctlptl.yaml`; do not create or delete that cluster from the `Tiltfile`.
+`Tiltfile` assumes the current Kubernetes context is `kind-template-k8s-dev`,
+renders the Helm chart, and redeploys changes. `ko` builds the manager image
+from `./cmd` using `.ko.yaml`, and Tilt injects the built image into the
+Helm-rendered Deployment.
+
+Use `moon run root:dev-stack-smoke` to prove the full loop. It creates the dev
+cluster and registry, runs non-interactive Tilt validation, checks the sample
+`NginxDeployment`, and cleans the local stack up on exit.
+
 ## Manager Startup
 
 Manager configuration uses Kong in `cmd/options.go`. Add new command-line
