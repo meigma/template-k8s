@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/meigma/template-k8s/compare/v0.1.1...v0.1.2) (2026-05-20)
+
+
+### Bug Fixes
+
+* **release:** authenticate helm chart attestations ([#21](https://github.com/meigma/template-k8s/issues/21)) ([8ed4b16](https://github.com/meigma/template-k8s/commit/8ed4b16cca8f73181312f9441fef8b1e62aa6306))
+
 ## [0.1.1](https://github.com/meigma/template-k8s/compare/v0.1.0...v0.1.1) (2026-05-20)
 
 
