@@ -17,7 +17,7 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NginxDeployment is the Schema for the nginxdeployments API
+        description: NginxDeployment is the Schema for the nginxdeployments API.
         properties:
           apiVersion:
             description: |-
