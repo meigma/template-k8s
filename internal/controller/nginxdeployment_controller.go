@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	examplev1alpha1 "github.com/meigma/template-k8s/api/v1alpha1"
 	"github.com/meigma/template-k8s/internal/controller/telemetry"
@@ -60,13 +61,19 @@ type NginxDeploymentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *NginxDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx, "nginxdeployment", req.String())
+
 	instance := &examplev1alpha1.NginxDeployment{}
 	if err := r.Get(ctx, req.NamespacedName, instance); err != nil {
 		if apierrors.IsNotFound(err) {
+			log.V(1).Info("NginxDeployment not found; ignoring deleted object")
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
+	log = log.WithValues("generation", instance.Generation)
+	ctx = logf.IntoContext(ctx, log)
+	log.V(1).Info("Reconciling NginxDeployment")
 
 	config := nginxConfig(instance)
 	childApplies := make([]telemetry.ChildApply, 0, 3)
@@ -99,8 +106,14 @@ func (r *NginxDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	})
 
 	r.telemetry().RecordChildApplies(instance, childApplies)
+	logChildApplies(ctx, childApplies)
 
-	return ctrl.Result{}, r.reconcileStatus(ctx, instance, deployment)
+	if err := r.reconcileStatus(ctx, instance, deployment); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	log.V(1).Info("Finished reconciling NginxDeployment")
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -265,8 +278,48 @@ func (r *NginxDeploymentReconciler) reconcileStatus(
 	}
 	if conditionChanged && currentCondition != nil {
 		r.telemetry().RecordStatusTransition(instance, *currentCondition)
+		logf.FromContext(ctx).Info(
+			"Updated NginxDeployment status condition",
+			"condition", currentCondition.Type,
+			"status", currentCondition.Status,
+			"reason", currentCondition.Reason,
+			"readyReplicas", instance.Status.ReadyReplicas,
+		)
+	} else {
+		logf.FromContext(ctx).V(1).Info("Updated NginxDeployment status", "readyReplicas", instance.Status.ReadyReplicas)
 	}
 	return nil
+}
+
+func logChildApplies(ctx context.Context, applies []telemetry.ChildApply) {
+	changes := make([]string, 0, len(applies))
+	for _, apply := range applies {
+		operation, ok := logOperation(apply.Operation)
+		if !ok {
+			continue
+		}
+		changes = append(changes, fmt.Sprintf("%s=%s", apply.Resource, operation))
+	}
+
+	log := logf.FromContext(ctx)
+	if len(changes) == 0 {
+		log.V(1).Info("Child resources already match desired state")
+		return
+	}
+	log.Info("Applied child resources", "changes", strings.Join(changes, ","))
+}
+
+func logOperation(operation controllerutil.OperationResult) (string, bool) {
+	switch operation {
+	case controllerutil.OperationResultCreated:
+		return string(controllerutil.OperationResultCreated), true
+	case controllerutil.OperationResultUpdated,
+		controllerutil.OperationResultUpdatedStatus,
+		controllerutil.OperationResultUpdatedStatusOnly:
+		return string(controllerutil.OperationResultUpdated), true
+	default:
+		return "", false
+	}
 }
 
 func (r *NginxDeploymentReconciler) telemetry() telemetry.Recorder {

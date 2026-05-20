@@ -46,6 +46,11 @@ Aggregate child resource create/update results into one event per successful
 reconcile, and emit condition events only after the status patch succeeds and
 the persisted condition status or reason changes.
 
+Use controller-runtime's context logger in reconcile loops. Log actual
+controller side effects and persisted user-visible status transitions at info
+level. Put start/finish messages, deleted-object ignores, no-op child applies,
+and status patches that do not change condition status or reason behind `V(1)`.
+
 ## Best Practices From Mature Operators
 
 These patterns are worth carrying into this template as examples and decision
