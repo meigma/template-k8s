@@ -110,7 +110,20 @@ Common settings to document for this operator:
 - Resource requests and limits.
 - Metrics and health probe settings.
 - Leader election settings.
+- Optional Kyverno image verification for the released controller image.
 - Any provider credentials, watched namespaces, or external service endpoints.
+
+If Kyverno is installed in the target cluster, the chart can install an
+optional `ClusterPolicy` that verifies the operator image's GitHub Artifact
+Attestation:
+
+```sh
+helm install <release-name> oci://ghcr.io/<org>/<repo>/chart \
+  --version <version> \
+  --namespace <namespace> \
+  --create-namespace \
+  --set kyverno.imageVerification.enabled=true
+```
 
 ## Development
 

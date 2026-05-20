@@ -44,6 +44,93 @@
     "commonAnnotations": {
       "$ref": "#/definitions/stringMap"
     },
+    "kyverno": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["imageVerification"],
+      "properties": {
+        "imageVerification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "name",
+            "validationFailureAction",
+            "webhookTimeoutSeconds",
+            "imageReferences",
+            "attestor",
+            "attestation"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "name": {
+              "$ref": "#/definitions/dnsLabelName"
+            },
+            "validationFailureAction": {
+              "type": "string",
+              "enum": ["Audit", "Enforce"]
+            },
+            "webhookTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "imageReferences": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "attestor": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["issuer", "subject", "subjectRegExp", "rekor"],
+              "properties": {
+                "issuer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "subjectRegExp": {
+                  "type": "string"
+                },
+                "rekor": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["url"],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            },
+            "attestation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "buildType"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "buildType": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,
