@@ -88,6 +88,10 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- include "template-k8s.suffixedName" (dict "context" . "suffix" "controller-manager-metrics-service") -}}
 {{- end -}}
 
+{{- define "template-k8s.kyvernoImagePolicyName" -}}
+{{- default (include "template-k8s.suffixedName" (dict "context" . "suffix" "verify-image")) .Values.kyverno.imageVerification.name -}}
+{{- end -}}
+
 {{- define "template-k8s.nginxDeploymentAdminRoleName" -}}
 {{- include "template-k8s.suffixedName" (dict "context" . "suffix" "nginxdeployment-admin-role") -}}
 {{- end -}}

@@ -219,6 +219,9 @@ that shape, trim the release files before the first release.
 
 - `charts/template-k8s/values.yaml`
   - Update `image.repository`.
+  - Update `kyverno.imageVerification.attestor.subjectRegExp` so optional
+    Kyverno image verification trusts the generated repository's release
+    workflow.
   - Add, remove, or rename values for real controller runtime options.
   - Keep fixed image tags or digests; do not default to `latest`.
 
@@ -237,6 +240,12 @@ that shape, trim the release files before the first release.
   - Update helper references if the helper namespace changes.
   - Keep restricted-compatible security settings unless the new operator has a
     documented reason to change them.
+
+- `charts/template-k8s/templates/kyverno-image-policy.yaml`
+  - Update the policy name helper and default attestor subject if the chart or
+    release workflow identity changes.
+  - Keep it optional unless Kyverno is a hard prerequisite for the generated
+    repository.
 
 - `charts/template-k8s/templates/rbac-manager.yaml`
   - Replace the custom resource API group, resource, `/status` resource, and

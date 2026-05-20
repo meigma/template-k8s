@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -38,6 +39,81 @@ func TestManagerRBACMatchesControllerGen(t *testing.T) {
 	if got, want := canonicalRules(t, chartRole), canonicalRules(t, generatedRole); got != want {
 		t.Fatalf("chart manager RBAC drifted from controller-gen output\nchart: %s\ncontroller-gen: %s", got, want)
 	}
+}
+
+// TestKyvernoImageVerificationPolicyIsOptional verifies the default chart
+// render does not install Kyverno policies into clusters that do not use
+// Kyverno image verification.
+func TestKyvernoImageVerificationPolicyIsOptional(t *testing.T) {
+	repoRoot := repoRoot(t)
+	rendered := run(t, repoRoot,
+		"helm", "template", "template-k8s", "charts/template-k8s",
+		"--namespace", "template-k8s-system",
+	)
+
+	if policy := findOptionalObject(t, rendered, "ClusterPolicy", "template-k8s-verify-image"); policy != nil {
+		t.Fatalf("expected Kyverno image verification policy to be opt-in, found %s/%s", policy.GetKind(), policy.GetName())
+	}
+}
+
+// TestKyvernoImageVerificationPolicyRendersGitHubAttestationPolicy verifies
+// the opt-in Kyverno policy matches the GitHub-native image attestation
+// produced by the release workflow.
+func TestKyvernoImageVerificationPolicyRendersGitHubAttestationPolicy(t *testing.T) {
+	repoRoot := repoRoot(t)
+	rendered := run(t, repoRoot,
+		"helm", "template", "template-k8s", "charts/template-k8s",
+		"--namespace", "template-k8s-system",
+		"--set", "kyverno.imageVerification.enabled=true",
+	)
+	policy := findObject(t, rendered, "ClusterPolicy", "template-k8s-verify-image")
+
+	requireNestedString(t, policy.Object, "Enforce", "spec", "validationFailureAction")
+	requireNestedInt64(t, policy.Object, 30, "spec", "webhookTimeoutSeconds")
+
+	rules := requireNestedSlice(t, policy.Object, "spec", "rules")
+	rule := requireFirstMap(t, rules, "rule")
+	verifyImages := requireNestedSlice(t, rule, "verifyImages")
+	verifyImage := requireFirstMap(t, verifyImages, "verifyImages")
+	requireNestedString(t, verifyImage, "SigstoreBundle", "type")
+	gotRefs := stringSlice(t, requireNestedSlice(t, verifyImage, "imageReferences"))
+	wantRefs := []string{"ghcr.io/meigma/template-k8s:*", "ghcr.io/meigma/template-k8s@*"}
+	if !reflect.DeepEqual(gotRefs, wantRefs) {
+		t.Fatalf("unexpected imageReferences: got %v, want %v", gotRefs, wantRefs)
+	}
+
+	attestations := requireNestedSlice(t, verifyImage, "attestations")
+	attestation := requireFirstMap(t, attestations, "attestations")
+	requireNestedString(t, attestation, "https://slsa.dev/provenance/v1", "type")
+
+	attestors := requireNestedSlice(t, attestation, "attestors")
+	attestor := requireFirstMap(t, attestors, "attestors")
+	entries := requireNestedSlice(t, attestor, "entries")
+	entry := requireFirstMap(t, entries, "entries")
+	keyless, ok, err := unstructured.NestedMap(entry, "keyless")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("attestor entry has no keyless verifier")
+	}
+	requireNestedString(t, keyless, "https://token.actions.githubusercontent.com", "issuer")
+	requireNestedString(
+		t,
+		keyless,
+		"^https://github\\.com/meigma/template-k8s/\\.github/workflows/release\\.yml@refs/tags/"+
+			"v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$",
+		"subjectRegExp",
+	)
+	requireNestedString(t, keyless, "https://rekor.sigstore.dev", "rekor", "url")
+
+	conditions := requireNestedSlice(t, attestation, "conditions")
+	condition := requireFirstMap(t, conditions, "conditions")
+	all := requireNestedSlice(t, condition, "all")
+	buildType := requireFirstMap(t, all, "conditions.all")
+	requireNestedString(t, buildType, "{{ buildDefinition.buildType }}", "key")
+	requireNestedString(t, buildType, "Equals", "operator")
+	requireNestedString(t, buildType, "https://actions.github.io/buildtypes/workflow/v1", "value")
 }
 
 // repoRoot walks up from the current working directory until it finds the
@@ -97,12 +173,23 @@ func readObject(t *testing.T, path string) *unstructured.Unstructured {
 func findObject(t *testing.T, data []byte, kind string, name string) *unstructured.Unstructured {
 	t.Helper()
 
+	if obj := findOptionalObject(t, data, kind, name); obj != nil {
+		return obj
+	}
+	t.Fatalf("could not find %s/%s", kind, name)
+	return nil
+}
+
+// findOptionalObject scans the YAML document stream in data for the first
+// object matching the supplied kind and name.
+func findOptionalObject(t *testing.T, data []byte, kind string, name string) *unstructured.Unstructured {
+	t.Helper()
+
 	for _, obj := range decodeObjects(t, data) {
 		if obj.GetKind() == kind && obj.GetName() == name {
 			return obj
 		}
 	}
-	t.Fatalf("could not find %s/%s", kind, name)
 	return nil
 }
 
@@ -169,6 +256,83 @@ func canonicalRules(t *testing.T, obj *unstructured.Unstructured) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// requireNestedString asserts that the nested string at fields equals want.
+func requireNestedString(t *testing.T, obj map[string]any, want string, fields ...string) {
+	t.Helper()
+
+	got, ok, err := unstructured.NestedString(obj, fields...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("missing nested string %v", fields)
+	}
+	if got != want {
+		t.Fatalf("unexpected nested string %v: got %q, want %q", fields, got, want)
+	}
+}
+
+// requireNestedInt64 asserts that the nested integer at fields equals want.
+func requireNestedInt64(t *testing.T, obj map[string]any, want int64, fields ...string) {
+	t.Helper()
+
+	got, ok, err := unstructured.NestedInt64(obj, fields...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("missing nested integer %v", fields)
+	}
+	if got != want {
+		t.Fatalf("unexpected nested integer %v: got %d, want %d", fields, got, want)
+	}
+}
+
+// requireNestedSlice asserts that fields resolves to a nested slice and
+// returns it.
+func requireNestedSlice(t *testing.T, obj map[string]any, fields ...string) []any {
+	t.Helper()
+
+	values, ok, err := unstructured.NestedSlice(obj, fields...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatalf("missing nested slice %v", fields)
+	}
+	return values
+}
+
+// requireFirstMap asserts that values[0] is an object map and returns it.
+func requireFirstMap(t *testing.T, values []any, label string) map[string]any {
+	t.Helper()
+
+	if len(values) == 0 {
+		t.Fatalf("%s has no entries", label)
+	}
+	value, ok := values[0].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected %s[0] type %T", label, values[0])
+	}
+	return value
+}
+
+// stringSlice asserts that values is a slice of strings and returns those
+// strings in the original order.
+func stringSlice(t *testing.T, values []any) []string {
+	t.Helper()
+
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		item, ok := value.(string)
+		if !ok {
+			t.Fatalf("unexpected string slice value type %T", value)
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 // sortedStrings asserts that values is a slice of strings and returns those
