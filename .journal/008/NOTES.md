@@ -49,3 +49,8 @@ Goal for the session: Port the latest `../template-go` release workflow fix for 
 Current state of the world: Latest `template-go` commit `802183a ci(release): build containers on native arm runners (#15)` splits container builds by platform, runs arm64 on `ubuntu-24.04-arm`, and assembles the final multi-platform manifest from pushed platform digests. Ported the same pattern here on branch `feat/native-arm-container-release` in PR #20, preserving the Helm chart release dependency on the final `container-image-release` manifest job.
 Validation: `actionlint .github/workflows/*.yml` and `git diff --check` passed locally. Manual `Release Dry Run` on the branch passed at https://github.com/meigma/template-k8s/actions/runs/26139776150: amd64 platform dry-run 3m05s, arm64 platform dry-run 2m47s, final container smoke 14s, Helm dry-run 20s, and binary dry-run 4m29s. PR #20 normal checks are green and mergeable.
 Plan: Hand off PR #20 for merge when desired; this should remove the previous single-runner 18-minute multi-platform container dry-run bottleneck.
+
+## 2026-05-19 20:56 — PR #20 merge
+Goal for the session: Merge the native ARM container release workflow PR after user approval.
+Current state of the world: PR #20 was clean and green, then squash-merged on GitHub as `68031e1 ci(release): build containers on native arm runners (#20)`. Deleted the remote feature branch, fast-forwarded local `master` to `68031e1`, and removed the `feat/native-arm-container-release` Worktrunk worktree.
+Plan: The release workflow now uses native platform image builds on `master`; the next Release Please dry-run or release should exercise the faster path from the default branch.
