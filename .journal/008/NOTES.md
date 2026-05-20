@@ -38,3 +38,8 @@ Goal for the session: Open and merge the Helm OCI release workflow PR after CI i
 Current state of the world: Opened PR #19, `ci(release): publish helm chart to ghcr`, from `feat/helm-oci-chart-release`. PR checks completed successfully: `ci` passed, Kusari Inspector passed, and the Release Dry Run jobs skipped as expected for a non-Release-Please PR. Squash-merged the PR into `master` as `d9de742 ci(release): publish helm chart to ghcr (#19)`.
 Cleanup: Deleted the remote feature branch after the `gh pr merge --delete-branch` local cleanup step hit the known separate-worktree `master` checkout issue, fast-forwarded the main checkout to `origin/master`, and removed the Worktrunk feature worktree.
 Plan: Next release-readiness step is a manual `Release Dry Run` workflow run from `master` before the first test release.
+
+## 2026-05-19 19:44 — Release Please PR watch
+Goal for the session: Let the user know once the Release Please PR is passing.
+Current state of the world: PR #14, `chore(master): release 0.1.1`, was still showing the older failed Release Dry Run from before PR #19 merged. Updated the PR branch with `gh pr update-branch 14`, which created fresh checks on head `f2c8d75`. `ci`, `Binary Release Dry Run`, `Helm Chart Dry Run`, and Kusari Inspector passed; `Container Image Dry Run` remained in progress in the multi-platform Buildx export step.
+Plan: Created heartbeat monitor `watch-release-please-pr` to wake this thread when PR #14 is fully passing or if any fresh check fails.
