@@ -13,3 +13,4 @@
 - Release Please updates `charts/template-k8s/Chart.yaml`, but Helm chart publication is not wired yet; release workflows still publish binaries and the container image.
 - Repo-local Kubernetes operator lessons live in `.agents/skills/k8s-operator/SKILL.md`.
 - Test layering is intentional: envtest owns the controller/API behavior matrix, including manager-backed watch/predicate/index coverage; Chainsaw owns Kind-backed chart install/runtime smoke and should not duplicate envtest edge cases.
+- Operator-specific observability is intentionally finite-label and injectable: `internal/controller/telemetry` registers NginxDeployment child apply and status transition counters with controller-runtime's metrics registry, and wraps Kubernetes Event emission for aggregated child apply events plus persisted availability condition reason changes.

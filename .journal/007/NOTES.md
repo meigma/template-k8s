@@ -28,3 +28,13 @@ Verification: `gh pr checks 15 --watch --fail-fast` completed successfully. Fina
 Goal for the session: Merge approved PR #15 and clean up the implementation worktree.
 Current state of the world: PR #15 was squash-merged on GitHub as `750470cb4eae9b4035c4428cdc2d5d2c95f45523` (`test(controller): prove manager watch wiring (#15)`). Local `master` fast-forwarded to that commit. Worktrunk removed the integrated `feat/envtest-test-boundary` worktree and local branch, and the remote feature branch was deleted explicitly after `gh pr merge --delete-branch` could not delete the local branch while its worktree existed.
 Verification: `gh pr view 15` reports `MERGED`; `git status --short --branch` on the main checkout reports clean `master...origin/master`.
+
+## 2026-05-19 17:37 — Operator observability implementation
+Goal for the session: Implement the planned operator-specific metrics and Kubernetes Events pattern.
+Current state of the world: Work is on `feat/operator-observability`. The controller now has an injectable telemetry recorder, bounded Prometheus counters for child apply operations and status transitions, and Kubernetes Events for aggregated child apply results plus persisted availability condition reason changes. The implementation also pinned Kubernetes-defaulted Deployment fields that the new no-op telemetry tests exposed as a reconcile churn source.
+Verification: `moon run root:test`, `moon run root:lint`, `moon run root:chainsaw-lint`, `moon ci --summary minimal`, `git diff --check`, and `moon run root:test-e2e` passed in the feature worktree.
+
+## 2026-05-19 17:46 — Observability PR and CI
+Goal for the session: Publish the observability implementation for review and verify remote CI.
+Current state of the world: PR #16 is open at https://github.com/meigma/template-k8s/pull/16 with title `feat(controller): add operator observability signals`; head is `feat/operator-observability` at `51c566bc66c844e86a4aeb20d5aa0eda0fd7e60e`.
+Verification: `gh pr checks 16` reports `ci` and `Kusari Inspector` passing. Binary and container release dry-run checks are skipped by the existing release-branch gating policy.
