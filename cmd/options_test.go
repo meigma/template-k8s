@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseManagerOptions covers the manager flag parser across defaults,
+// the manifest argument shape, negatable booleans, and the slog logging
+// switches.
 func TestParseManagerOptions(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -77,12 +80,18 @@ func TestParseManagerOptions(t *testing.T) {
 	}
 }
 
+// TestParseManagerOptionsRejectsZapFlags asserts the parser refuses legacy
+// zap flags so operators do not silently lose configuration after the slog
+// migration.
 func TestParseManagerOptionsRejectsZapFlags(t *testing.T) {
 	_, err := parseManagerOptions([]string{"--zap-devel=true"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "zap-devel")
 }
 
+// TestParseManagerOptionsRejectsInvalidLogOptions checks that unsupported log
+// format and level values surface a parser error rather than silently
+// defaulting to info/json.
 func TestParseManagerOptionsRejectsInvalidLogOptions(t *testing.T) {
 	tests := []struct {
 		name string
@@ -106,6 +115,8 @@ func TestParseManagerOptionsRejectsInvalidLogOptions(t *testing.T) {
 	}
 }
 
+// TestNewControllerLogger exercises every supported format/level combination
+// to make sure newControllerLogger produces a working logger for each.
 func TestNewControllerLogger(t *testing.T) {
 	formats := []string{"json", "text"}
 	levels := []string{"debug", "info", "warn", "error"}
@@ -128,6 +139,9 @@ func TestNewControllerLogger(t *testing.T) {
 	}
 }
 
+// TestNewControllerLoggerRejectsInvalidOptions asserts that newControllerLogger
+// returns an error rather than falling back to a default handler when the
+// caller supplies an unknown format or level.
 func TestNewControllerLoggerRejectsInvalidOptions(t *testing.T) {
 	tests := []struct {
 		name    string

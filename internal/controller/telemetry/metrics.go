@@ -22,7 +22,9 @@ const (
 	statusReasonDeploymentStale       = "DeploymentStatusStale"
 )
 
-// ChildResource identifies an owned resource with a bounded metric label value.
+// ChildResource identifies an owned resource with a bounded metric label
+// value. Restricting child resource identifiers to a closed set of constants
+// keeps the metric cardinality finite even as the controller grows.
 type ChildResource string
 
 const (
@@ -33,13 +35,22 @@ const (
 
 // ChildApply is the result of applying one owned child resource.
 type ChildApply struct {
-	Resource  ChildResource
+	// Resource identifies which owned child was applied.
+	Resource ChildResource
+
+	// Operation is the controllerutil result reported by CreateOrPatch for
+	// this child resource (Created, Updated, Unchanged, ...).
 	Operation controllerutil.OperationResult
 }
 
 // Metrics owns the controller-specific Prometheus collectors.
 type Metrics struct {
-	childApplyTotal       *prometheus.CounterVec
+	// childApplyTotal counts child-resource create or update operations,
+	// labelled by resource kind and operation outcome.
+	childApplyTotal *prometheus.CounterVec
+
+	// statusTransitionTotal counts persisted NginxDeployment status condition
+	// transitions, labelled by condition type, status, and reason.
 	statusTransitionTotal *prometheus.CounterVec
 }
 
@@ -81,6 +92,9 @@ func NewMetrics(registerer prometheus.Registerer) (*Metrics, error) {
 	return metrics, nil
 }
 
+// recordChildApply increments the childApplyTotal counter for the given
+// apply, returning false when the operation did not represent an actual
+// create or update so the caller can avoid emitting a redundant event.
 func (m *Metrics) recordChildApply(apply ChildApply) bool {
 	operation, ok := metricOperation(apply.Operation)
 	if !ok {
@@ -90,6 +104,9 @@ func (m *Metrics) recordChildApply(apply ChildApply) bool {
 	return true
 }
 
+// recordStatusTransition increments the statusTransitionTotal counter for the
+// supplied condition. The condition status is lowercased to keep label values
+// consistent with the Prometheus convention used for boolean states.
 func (m *Metrics) recordStatusTransition(condition metav1.Condition) {
 	m.statusTransitionTotal.WithLabelValues(
 		condition.Type,
@@ -98,6 +115,10 @@ func (m *Metrics) recordStatusTransition(condition metav1.Condition) {
 	).Inc()
 }
 
+// initializeKnownSeries pre-creates the label combinations the controller can
+// legitimately emit. Pre-creating these series makes Prometheus expose them
+// at zero before the first event, which gives scrapers a stable schema and
+// simpler rate(...) queries.
 func (m *Metrics) initializeKnownSeries() {
 	for _, resource := range []ChildResource{
 		ChildResourceConfigMap,
@@ -125,6 +146,9 @@ func (m *Metrics) initializeKnownSeries() {
 	}
 }
 
+// metricOperation maps a controllerutil OperationResult to the bounded label
+// value used in metrics. It collapses the three update flavours into a single
+// "updated" bucket and reports false for outcomes that should not be counted.
 func metricOperation(operation controllerutil.OperationResult) (string, bool) {
 	switch operation {
 	case controllerutil.OperationResultCreated:

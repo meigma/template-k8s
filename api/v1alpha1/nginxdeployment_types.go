@@ -59,8 +59,9 @@ type NginxDeploymentStatus struct {
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.size() <= 63",message="metadata.name must be 63 characters or less because owned resources are named after the NginxDeployment"
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be an RFC 1123 label because owned Services are named after the NginxDeployment"
 
-// NginxDeployment is the Schema for the nginxdeployments API
+// NginxDeployment is the Schema for the nginxdeployments API.
 type NginxDeployment struct {
+	// TypeMeta carries the API group, version, and kind for this resource.
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is a standard object metadata
@@ -78,13 +79,20 @@ type NginxDeployment struct {
 
 // +kubebuilder:object:root=true
 
-// NginxDeploymentList contains a list of NginxDeployment
+// NginxDeploymentList contains a list of NginxDeployment.
 type NginxDeploymentList struct {
+	// TypeMeta carries the API group, version, and kind for this list.
 	metav1.TypeMeta `json:",inline"`
+
+	// ListMeta is the standard list metadata, including resourceVersion and continue token.
 	metav1.ListMeta `json:"metadata,omitzero"`
-	Items           []NginxDeployment `json:"items"`
+
+	// Items holds the NginxDeployment resources returned in this list.
+	Items []NginxDeployment `json:"items"`
 }
 
+// init registers NginxDeployment and NginxDeploymentList with the package SchemeBuilder so
+// they are added to a runtime scheme alongside the rest of the v1alpha1 API group.
 func init() {
 	SchemeBuilder.Register(&NginxDeployment{}, &NginxDeploymentList{})
 }

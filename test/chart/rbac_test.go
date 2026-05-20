@@ -15,6 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
+// TestManagerRBACMatchesControllerGen compares the manager ClusterRole
+// rendered by the Helm chart against a freshly generated controller-gen role
+// to make sure chart RBAC does not drift from the controller's actual
+// kubebuilder markers.
 func TestManagerRBACMatchesControllerGen(t *testing.T) {
 	repoRoot := repoRoot(t)
 	rendered := run(t, repoRoot,
@@ -36,6 +40,8 @@ func TestManagerRBACMatchesControllerGen(t *testing.T) {
 	}
 }
 
+// repoRoot walks up from the current working directory until it finds the
+// go.mod that anchors the repository and returns that directory.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 
@@ -55,6 +61,8 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
+// run executes the supplied command in dir, returning its combined output
+// and failing the test if the command exits non-zero.
 func run(t *testing.T, dir string, name string, args ...string) []byte {
 	t.Helper()
 
@@ -67,6 +75,9 @@ func run(t *testing.T, dir string, name string, args ...string) []byte {
 	return out
 }
 
+// readObject loads exactly one unstructured Kubernetes object from the YAML
+// file at path, failing the test if the file contains zero or multiple
+// objects.
 func readObject(t *testing.T, path string) *unstructured.Unstructured {
 	t.Helper()
 
@@ -81,6 +92,8 @@ func readObject(t *testing.T, path string) *unstructured.Unstructured {
 	return objects[0]
 }
 
+// findObject scans the YAML document stream in data for the first object
+// matching the supplied kind and name, failing the test if no match is found.
 func findObject(t *testing.T, data []byte, kind string, name string) *unstructured.Unstructured {
 	t.Helper()
 
@@ -93,6 +106,8 @@ func findObject(t *testing.T, data []byte, kind string, name string) *unstructur
 	return nil
 }
 
+// decodeObjects parses a multi-document YAML/JSON stream into a slice of
+// unstructured Kubernetes objects, skipping empty documents.
 func decodeObjects(t *testing.T, data []byte) []*unstructured.Unstructured {
 	t.Helper()
 
@@ -115,6 +130,9 @@ func decodeObjects(t *testing.T, data []byte) []*unstructured.Unstructured {
 	return objects
 }
 
+// canonicalRules renders the .rules field of a (Cluster)Role into a stable
+// canonical JSON form so two roles can be compared regardless of slice or
+// field ordering produced by Helm or controller-gen.
 func canonicalRules(t *testing.T, obj *unstructured.Unstructured) string {
 	t.Helper()
 
@@ -153,6 +171,8 @@ func canonicalRules(t *testing.T, obj *unstructured.Unstructured) string {
 	return string(data)
 }
 
+// sortedStrings asserts that values is a slice of strings and returns those
+// strings in sorted order so the canonicalRules output is stable.
 func sortedStrings(t *testing.T, values any) []string {
 	t.Helper()
 

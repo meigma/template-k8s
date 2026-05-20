@@ -42,10 +42,18 @@ const (
 	reasonDeploymentStale       = "DeploymentStatusStale"
 )
 
-// NginxDeploymentReconciler reconciles a NginxDeployment object
+// NginxDeploymentReconciler reconciles a NginxDeployment object.
 type NginxDeploymentReconciler struct {
+	// Client is the controller-runtime client used to read and write
+	// NginxDeployment resources and their owned children.
 	client.Client
-	Scheme    *runtime.Scheme
+
+	// Scheme is the runtime scheme used when setting controller references on
+	// owned child resources.
+	Scheme *runtime.Scheme
+
+	// Telemetry receives child-apply and status-transition observations.
+	// A nil value selects telemetry.NoopRecorder so callers can opt out.
 	Telemetry telemetry.Recorder
 }
 
@@ -127,6 +135,9 @@ func (r *NginxDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// reconcileConfigMap creates or patches the ConfigMap that holds the rendered
+// nginx configuration for instance, returning the controllerutil operation
+// result so callers can record telemetry and decide whether to log a change.
 func (r *NginxDeploymentReconciler) reconcileConfigMap(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
@@ -149,6 +160,10 @@ func (r *NginxDeploymentReconciler) reconcileConfigMap(
 	return result, err
 }
 
+// reconcileDeployment creates or patches the owned nginx Deployment to match
+// the desired spec, stamping a config hash annotation on the pod template so
+// that pods restart whenever the rendered nginx configuration changes. It
+// returns the freshly fetched Deployment alongside the operation result.
 func (r *NginxDeploymentReconciler) reconcileDeployment(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
@@ -231,6 +246,8 @@ func (r *NginxDeploymentReconciler) reconcileDeployment(
 	return deployment, result, r.Get(ctx, client.ObjectKeyFromObject(deployment), deployment)
 }
 
+// reconcileService creates or patches the same-named ClusterIP Service that
+// fronts the nginx Deployment, returning the controllerutil operation result.
 func (r *NginxDeploymentReconciler) reconcileService(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
@@ -259,6 +276,10 @@ func (r *NginxDeploymentReconciler) reconcileService(
 	return result, err
 }
 
+// reconcileStatus patches the NginxDeployment status subresource with the
+// observed ready replica count and the computed Available condition. It only
+// issues a patch when the status actually changed and records a telemetry
+// transition only when the Available condition's status or reason moved.
 func (r *NginxDeploymentReconciler) reconcileStatus(
 	ctx context.Context,
 	instance *examplev1alpha1.NginxDeployment,
@@ -291,6 +312,9 @@ func (r *NginxDeploymentReconciler) reconcileStatus(
 	return nil
 }
 
+// logChildApplies emits an info-level log entry summarising which child
+// resources were created or updated in this reconcile, or a V(1) entry when
+// every child resource was already in the desired state.
 func logChildApplies(ctx context.Context, applies []telemetry.ChildApply) {
 	changes := make([]string, 0, len(applies))
 	for _, apply := range applies {
@@ -309,6 +333,9 @@ func logChildApplies(ctx context.Context, applies []telemetry.ChildApply) {
 	log.Info("Applied child resources", "changes", strings.Join(changes, ","))
 }
 
+// logOperation maps a controllerutil OperationResult to a short string used in
+// log output and reports whether the operation represents an actual change.
+// "Unchanged" and "None" outcomes return false so callers can skip logging.
 func logOperation(operation controllerutil.OperationResult) (string, bool) {
 	switch operation {
 	case controllerutil.OperationResultCreated:
@@ -322,6 +349,9 @@ func logOperation(operation controllerutil.OperationResult) (string, bool) {
 	}
 }
 
+// telemetry returns the configured Recorder, falling back to a no-op recorder
+// when the controller was constructed without one so reconcile code never
+// needs to nil-check the dependency.
 func (r *NginxDeploymentReconciler) telemetry() telemetry.Recorder {
 	if r.Telemetry != nil {
 		return r.Telemetry
@@ -329,6 +359,9 @@ func (r *NginxDeploymentReconciler) telemetry() telemetry.Recorder {
 	return telemetry.NoopRecorder()
 }
 
+// conditionStateChanged reports whether the current Available condition
+// represents a transition relative to previous. A nil current condition is
+// treated as no change so reconcile does not emit spurious transitions.
 func conditionStateChanged(previous *metav1.Condition, current *metav1.Condition) bool {
 	if current == nil {
 		return false
@@ -339,6 +372,10 @@ func conditionStateChanged(previous *metav1.Condition, current *metav1.Condition
 	return previous.Status != current.Status || previous.Reason != current.Reason
 }
 
+// availableCondition computes the Available condition for the NginxDeployment
+// from the owned Deployment's observed state. It returns Unknown-like False
+// values when the Deployment's status is stale relative to its generation so
+// callers never trust pre-rollout readiness signals.
 func availableCondition(
 	instance *examplev1alpha1.NginxDeployment,
 	deployment *appsv1.Deployment,
@@ -377,6 +414,9 @@ func availableCondition(
 	}
 }
 
+// deploymentAvailable reports whether the Deployment carries a True
+// DeploymentAvailable condition, which is the canonical Kubernetes signal that
+// minimum replicas are running.
 func deploymentAvailable(deployment *appsv1.Deployment) bool {
 	for _, condition := range deployment.Status.Conditions {
 		if condition.Type == appsv1.DeploymentAvailable && condition.Status == corev1.ConditionTrue {
@@ -386,10 +426,15 @@ func deploymentAvailable(deployment *appsv1.Deployment) bool {
 	return false
 }
 
+// labelsFor returns the labels stamped on every owned child resource. It is
+// currently identical to selectorLabelsFor and is kept as a separate seam in
+// case workload labels diverge from selector labels in the future.
 func labelsFor(instance *examplev1alpha1.NginxDeployment) map[string]string {
 	return selectorLabelsFor(instance)
 }
 
+// selectorLabelsFor returns the label set used both for the Deployment's pod
+// selector and for the Service's pod selector so they always agree.
 func selectorLabelsFor(instance *examplev1alpha1.NginxDeployment) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":       "nginx",
@@ -398,6 +443,9 @@ func selectorLabelsFor(instance *examplev1alpha1.NginxDeployment) map[string]str
 	}
 }
 
+// nginxConfig returns the nginx configuration the controller should project
+// into the ConfigMap. It uses Spec.Config when supplied or falls back to a
+// minimal hello-world configuration listening on the resolved port.
 func nginxConfig(instance *examplev1alpha1.NginxDeployment) string {
 	if instance.Spec.Config != "" {
 		return instance.Spec.Config
@@ -421,6 +469,8 @@ http {
 `, nginxPort(instance))
 }
 
+// nginxImage resolves the container image to run, defaulting to the package
+// default when Spec.Image is unset.
 func nginxImage(instance *examplev1alpha1.NginxDeployment) string {
 	if instance.Spec.Image != "" {
 		return instance.Spec.Image
@@ -428,6 +478,9 @@ func nginxImage(instance *examplev1alpha1.NginxDeployment) string {
 	return defaultNginxImage
 }
 
+// nginxImagePullPolicy chooses an ImagePullPolicy that matches Kubernetes
+// defaults: Always for floating "latest" tags and untagged images and
+// IfNotPresent for pinned tags and digests.
 func nginxImagePullPolicy(instance *examplev1alpha1.NginxDeployment) corev1.PullPolicy {
 	image := nginxImage(instance)
 	if strings.Contains(image, "@") {
@@ -442,6 +495,8 @@ func nginxImagePullPolicy(instance *examplev1alpha1.NginxDeployment) corev1.Pull
 	return corev1.PullIfNotPresent
 }
 
+// nginxReplicas resolves the desired replica count, preserving an explicit
+// zero value and defaulting to one when the spec leaves replicas unset.
 func nginxReplicas(instance *examplev1alpha1.NginxDeployment) int32 {
 	if instance.Spec.Replicas != nil {
 		return *instance.Spec.Replicas
@@ -449,6 +504,8 @@ func nginxReplicas(instance *examplev1alpha1.NginxDeployment) int32 {
 	return 1
 }
 
+// nginxPort resolves the container port nginx listens on, defaulting to
+// defaultNginxPort when Spec.Port is unset.
 func nginxPort(instance *examplev1alpha1.NginxDeployment) int32 {
 	if instance.Spec.Port > 0 {
 		return instance.Spec.Port
@@ -456,6 +513,8 @@ func nginxPort(instance *examplev1alpha1.NginxDeployment) int32 {
 	return defaultNginxPort
 }
 
+// nginxPodSecurityContext returns a Restricted-compatible PodSecurityContext
+// suitable for the unprivileged nginx image used by this template.
 func nginxPodSecurityContext() *corev1.PodSecurityContext {
 	return &corev1.PodSecurityContext{
 		RunAsNonRoot: new(true),
@@ -465,6 +524,9 @@ func nginxPodSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
+// nginxContainerSecurityContext returns a Restricted-compatible
+// SecurityContext that drops all Linux capabilities and forbids privilege
+// escalation.
 func nginxContainerSecurityContext() *corev1.SecurityContext {
 	return &corev1.SecurityContext{
 		AllowPrivilegeEscalation: new(false),
@@ -474,6 +536,9 @@ func nginxContainerSecurityContext() *corev1.SecurityContext {
 	}
 }
 
+// nginxResourceRequirements returns the modest CPU and memory requests the
+// template stamps on the nginx container. There are intentionally no limits
+// so this stays a sane starting point rather than a production policy.
 func nginxResourceRequirements() corev1.ResourceRequirements {
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
@@ -483,6 +548,9 @@ func nginxResourceRequirements() corev1.ResourceRequirements {
 	}
 }
 
+// configHash returns the hex-encoded SHA-256 of the supplied nginx config.
+// The hash is stamped on the pod template as an annotation so changes to the
+// projected ConfigMap data force a rollout.
 func configHash(config string) string {
 	sum := sha256.Sum256([]byte(config))
 	return hex.EncodeToString(sum[:])
