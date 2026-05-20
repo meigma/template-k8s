@@ -40,12 +40,9 @@ Common tasks:
 
 ```sh
 moon run root:generate
-moon run root:manifests
+moon run root:check
 moon run root:test
-moon run root:lint
-moon run root:chainsaw-lint
 moon run root:test-e2e
-moon ci --summary minimal
 git diff --check
 ```
 
@@ -70,10 +67,6 @@ moon run root:dev-down
 renders the Helm chart, and redeploys changes. `ko` builds the manager image
 from `./cmd` using `.ko.yaml`, and Tilt injects the built image into the
 Helm-rendered Deployment.
-
-Use `moon run root:dev-stack-smoke` to prove the full loop. It creates the dev
-cluster and registry, runs non-interactive Tilt validation, checks the sample
-`NginxDeployment`, and cleans the local stack up on exit.
 
 ## Manager Startup
 
@@ -103,7 +96,7 @@ Use controller-runtime ownership and watches deliberately:
 Generated files are part of the source tree, but should be produced by tools:
 
 - run `moon run root:generate` after API type changes
-- run `moon run root:manifests` after API marker, CRD, webhook, or manifest
+- run `moon run root:generate` after API marker, CRD, webhook, or manifest
   changes; generated CRDs are written to `charts/template-k8s/crds`
 - do not hand-edit `zz_generated.deepcopy.go` or generated CRDs except to
   diagnose generator output

@@ -61,14 +61,11 @@ jobs:
             ${{ runner.os }}-golangci-lint-${{ hashFiles('.go-version', '.golangci.yml', '.prototools', '.moon/proto/golangci-lint.toml', 'go.sum') }}-
             ${{ runner.os }}-golangci-lint-
 
-      - name: Run Moon CI
-        run: moon ci --summary minimal
+      - name: Run static checks
+        run: moon run root:check --summary minimal
 
-      - name: Verify generated artifacts
-        run: moon run root:generated-check
-
-      - name: Validate Helm chart
-        run: moon run root:chart-validate
+      - name: Run tests
+        run: moon run root:test --summary minimal
 
       - name: Check whitespace
         run: git diff --check

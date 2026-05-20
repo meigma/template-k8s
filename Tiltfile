@@ -5,7 +5,7 @@ CHART = 'charts/template-k8s'
 
 allow_k8s_contexts(EXPECTED_CONTEXT)
 if k8s_context() != EXPECTED_CONTEXT:
-    fail('Tilt may only run against %s. Run `moon run root:dev-cluster-up` and switch to that context first.' % EXPECTED_CONTEXT)
+    fail('Tilt may only run against %s. Run `moon run root:dev-up` from a clean shell.' % EXPECTED_CONTEXT)
 
 ci_settings(timeout='10m', readiness_timeout='5m')
 

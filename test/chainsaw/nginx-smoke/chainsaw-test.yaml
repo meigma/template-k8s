@@ -168,7 +168,6 @@ spec:
               kubectl delete clusterrolebinding template-k8s-metrics-smoke --ignore-not-found=true || true
               kubectl delete serviceaccount metrics-smoke -n template-k8s-system --ignore-not-found=true || true
               moon run root:undeploy || true
-              moon run root:uninstall || true
               kubectl delete namespace template-k8s-system --ignore-not-found=true || true
               exit 0
     - name: reconcile-sample
