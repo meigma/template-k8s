@@ -1,7 +1,7 @@
 # This workflow is tag-triggered by Release Please. It publishes binary release
-# assets with GoReleaser, publishes the container image with Docker-native
-# Actions, attests both artifact classes through GitHub-native attestations, and
-# leaves draft publication as a human decision after inspection.
+# assets with GoReleaser, publishes the container image and Helm chart to GHCR,
+# attests those artifact classes through GitHub-native attestations, and leaves
+# draft publication as a human decision after inspection.
 
 name: Release
 
@@ -20,6 +20,9 @@ permissions: {}
 
 env:
   IMAGE_NAME: ghcr.io/meigma/template-k8s
+  CHART_NAME: ghcr.io/meigma/template-k8s/chart
+  CHART_REF: oci://ghcr.io/meigma/template-k8s/chart
+  CHART_REPOSITORY: oci://ghcr.io/meigma/template-k8s
 
 jobs:
   resolve-release:
@@ -331,6 +334,111 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+  helm-chart-release:
+    name: Helm Chart Release
+    runs-on: ubuntu-24.04
+    needs:
+      - resolve-release
+      - container-image-release
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    outputs:
+      chart-digest: ${{ steps.push-chart.outputs.digest }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check out requested tag
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
+        run: git checkout --detach "$RELEASE_TAG"
+
+      - name: Set up Moon toolchain
+        uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0.6.4
+        with:
+          auto-install: true
+          auto-setup: true
+          cache-base: ${{ github.event.repository.default_branch }}
+
+      - name: Package Helm chart
+        id: package-chart
+        env:
+          RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          chart="charts/template-k8s"
+          package_dir="$(mktemp -d)"
+          metadata="$(helm show chart "$chart")"
+          chart_name="$(awk '/^name:/ { print $2; exit }' <<<"$metadata")"
+          chart_version="$(awk '/^version:/ { print $2; exit }' <<<"$metadata")"
+          app_version="$(awk '/^appVersion:/ { print $2; exit }' <<<"$metadata")"
+
+          if [ "$chart_name" != "chart" ]; then
+            echo "Chart.yaml name must be chart for ${CHART_REF}, got $chart_name" >&2
+            exit 1
+          fi
+          if [ "$chart_version" != "$RELEASE_VERSION" ]; then
+            echo "Chart.yaml version must be $RELEASE_VERSION, got $chart_version" >&2
+            exit 1
+          fi
+          if [ "$app_version" != "v${RELEASE_VERSION}" ]; then
+            echo "Chart.yaml appVersion must be v${RELEASE_VERSION}, got $app_version" >&2
+            exit 1
+          fi
+
+          helm lint "$chart"
+          helm package "$chart" --destination "$package_dir"
+
+          archive="$package_dir/chart-${RELEASE_VERSION}.tgz"
+          test -f "$archive"
+          helm template template-k8s "$archive" --namespace template-k8s-system --include-crds >/tmp/template-k8s-chart.yaml
+          grep -Fq "name: template-k8s-controller-manager" /tmp/template-k8s-chart.yaml
+          grep -Fq "app.kubernetes.io/name: template-k8s" /tmp/template-k8s-chart.yaml
+          grep -Fq "helm.sh/chart: chart-${RELEASE_VERSION}" /tmp/template-k8s-chart.yaml
+          grep -Fq "image: \"${IMAGE_NAME}:v${RELEASE_VERSION}\"" /tmp/template-k8s-chart.yaml
+          helm install template-k8s "$archive" --namespace template-k8s-system --dry-run=client --server-side=false >/dev/null
+
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Push Helm chart
+        id: push-chart
+        env:
+          CHART_ARCHIVE: ${{ steps.package-chart.outputs.archive }}
+        run: |
+          set -euo pipefail
+
+          push_output="$(helm push "$CHART_ARCHIVE" "$CHART_REPOSITORY" 2>&1)"
+          printf '%s\n' "$push_output"
+
+          digest="$(printf '%s\n' "$push_output" | awk '/^Digest: / { print $2; exit }')"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "could not resolve chart digest from helm push output" >&2
+            exit 1
+          fi
+
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest Helm chart
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.CHART_NAME }}
+          subject-digest: ${{ steps.push-chart.outputs.digest }}
+          push-to-registry: true
+
   release-inspection-summary:
     name: Release Inspection Summary
     runs-on: ubuntu-24.04
@@ -338,6 +446,7 @@ jobs:
       - resolve-release
       - binary-release-assets
       - container-image-release
+      - helm-chart-release
     permissions: {}
     steps:
       - name: Write inspection summary
@@ -346,6 +455,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.resolve-release.outputs.version }}
           IMAGE_NAME: ${{ needs.container-image-release.outputs.image-name }}
           IMAGE_DIGEST: ${{ needs.container-image-release.outputs.image-digest }}
+          CHART_DIGEST: ${{ needs.helm-chart-release.outputs.chart-digest }}
         run: |
           {
             echo "## Draft release ready for inspection"
@@ -370,5 +480,14 @@ jobs:
             echo "gh attestation verify \"oci://${IMAGE_NAME}@${IMAGE_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
             echo '```'
             echo
-            echo "Publish or reject the draft release manually after inspection. The container image is already available at ${IMAGE_NAME}:${RELEASE_TAG} because GHCR does not have a draft release state."
+            echo "Helm chart verification commands:"
+            echo
+            echo '```sh'
+            echo "helm show chart \"${CHART_REF}\" --version \"${RELEASE_VERSION}\""
+            echo "helm pull \"${CHART_REF}\" --version \"${RELEASE_VERSION}\""
+            echo "helm install template-k8s \"${CHART_REF}\" --version \"${RELEASE_VERSION}\" --namespace template-k8s-system --create-namespace"
+            echo "gh attestation verify \"${CHART_REF}@${CHART_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
+            echo '```'
+            echo
+            echo "Publish or reject the draft release manually after inspection. The container image and Helm chart are already available in GHCR because GHCR does not have a draft release state."
           } >> "$GITHUB_STEP_SUMMARY"

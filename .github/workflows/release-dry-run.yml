@@ -1,6 +1,6 @@
 # This workflow rehearses the release paths without uploading GitHub release
-# assets or publishing container images. It is intended for release PRs and
-# manual checks before changing release automation.
+# assets or publishing OCI artifacts. It is intended for release PRs and manual
+# checks before changing release automation.
 #
 # Keep the pull_request trigger broad so required check contexts still report
 # on normal PRs. The jobs intentionally skip unless the PR head branch is a
@@ -15,6 +15,10 @@ on:
   workflow_dispatch:
 
 permissions: {}
+
+env:
+  IMAGE_NAME: ghcr.io/meigma/template-k8s
+  CHART_REF: oci://ghcr.io/meigma/template-k8s/chart
 
 jobs:
   binary-release-dry-run:
@@ -204,3 +208,76 @@ jobs:
 
       - name: Validate multi-platform OCI archive
         run: test -s /tmp/template-k8s-dry-run.oci
+
+  helm-chart-dry-run:
+    name: Helm Chart Dry Run
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Moon toolchain
+        uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0.6.4
+        with:
+          auto-install: true
+          auto-setup: true
+          cache-base: ${{ github.event.repository.default_branch }}
+
+      - name: Package chart without publishing
+        env:
+          DRY_RUN_VERSION: 0.0.0-dryrun.${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          chart="charts/template-k8s"
+          package_dir="$(mktemp -d)"
+          metadata="$(helm show chart "$chart")"
+          chart_name="$(awk '/^name:/ { print $2; exit }' <<<"$metadata")"
+
+          if [ "$chart_name" != "chart" ]; then
+            echo "Chart.yaml name must be chart for ${CHART_REF}, got $chart_name" >&2
+            exit 1
+          fi
+
+          helm lint "$chart"
+          helm package "$chart" \
+            --version "$DRY_RUN_VERSION" \
+            --app-version "v${DRY_RUN_VERSION}" \
+            --destination "$package_dir"
+
+          archive="$package_dir/chart-${DRY_RUN_VERSION}.tgz"
+          test -f "$archive"
+
+          packaged_metadata="$(helm show chart "$archive")"
+          packaged_name="$(awk '/^name:/ { print $2; exit }' <<<"$packaged_metadata")"
+          packaged_version="$(awk '/^version:/ { print $2; exit }' <<<"$packaged_metadata")"
+          packaged_app_version="$(awk '/^appVersion:/ { print $2; exit }' <<<"$packaged_metadata")"
+
+          if [ "$packaged_name" != "chart" ]; then
+            echo "packaged chart name must be chart, got $packaged_name" >&2
+            exit 1
+          fi
+          if [ "$packaged_version" != "$DRY_RUN_VERSION" ]; then
+            echo "packaged chart version must be $DRY_RUN_VERSION, got $packaged_version" >&2
+            exit 1
+          fi
+          if [ "$packaged_app_version" != "v${DRY_RUN_VERSION}" ]; then
+            echo "packaged chart appVersion must be v${DRY_RUN_VERSION}, got $packaged_app_version" >&2
+            exit 1
+          fi
+
+          helm template template-k8s "$archive" --namespace template-k8s-system --include-crds >/tmp/template-k8s-chart.yaml
+          grep -Fq "name: template-k8s-controller-manager" /tmp/template-k8s-chart.yaml
+          grep -Fq "app.kubernetes.io/name: template-k8s" /tmp/template-k8s-chart.yaml
+          grep -Fq "helm.sh/chart: chart-${DRY_RUN_VERSION}" /tmp/template-k8s-chart.yaml
+          grep -Fq "image: \"${IMAGE_NAME}:v${DRY_RUN_VERSION}\"" /tmp/template-k8s-chart.yaml
+          helm install template-k8s "$archive" --namespace template-k8s-system --dry-run=client --server-side=false >/dev/null
+
+          echo "Dry-run chart package: $archive"
+          echo "Dry-run OCI ref: ${CHART_REF}:${DRY_RUN_VERSION}"
