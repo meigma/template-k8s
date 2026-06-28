@@ -101,7 +101,7 @@ func TestKyvernoImageVerificationPolicyRendersGitHubAttestationPolicy(t *testing
 	requireNestedString(
 		t,
 		keyless,
-		"^https://github\\.com/meigma/template-k8s/\\.github/workflows/release\\.yml@refs/tags/"+
+		"^https://github\\.com/meigma/template-k8s/\\.github/workflows/attest\\.yml@refs/tags/"+
 			"v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$",
 		"subjectRegExp",
 	)
