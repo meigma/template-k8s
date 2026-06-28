@@ -30,6 +30,12 @@ controllers, RBAC markers, envtest coverage, Chainsaw tests, or operator task
 wiring. That skill captures the local operator practices this repository
 expects agents to follow.
 
+Load `.agents/skills/mise/SKILL.md` before changing pinned tool versions,
+`mise.toml`/`mise.lock`, or moon's system toolchain. Load
+`.agents/skills/melange/SKILL.md` and `.agents/skills/apko/SKILL.md` before
+changing the container image build (`melange.yaml`/`apko.yaml`), its keyless
+signing, or its SBOM/provenance.
+
 ## Development Workflow
 
 mise is the tool front door: it provisions every pinned binary (Go, Moon, and

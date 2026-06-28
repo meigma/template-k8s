@@ -285,10 +285,20 @@ that shape, trim the release files before the first release.
 - `.github/workflows/release.yml`
   - Update `IMAGE_NAME`, `CHART_NAME`, `CHART_REF`, and `CHART_REPOSITORY`.
   - Update binary smoke-test names and temp file names.
-  - Update OCI labels, especially image title and description.
-  - Update Docker cache scopes.
   - Update Helm chart paths, rendered-output assertions, install examples, and
     release inspection summary commands.
+
+- `melange.yaml`
+  - Update `package.name`, `description`, and the `go/build` `packages` (`./cmd`)
+    and `output` (`manager`) if the binary entrypoint or name changes.
+  - `package.version` is bumped by Release Please (extra-files); keep the
+    `x-release-please-version` marker.
+
+- `apko.yaml`
+  - Update `entrypoint.command` (`/usr/bin/<output>`), the `@local` package name,
+    and the `org.opencontainers.image.*` annotations (title, description, source).
+  - Keep the nonroot `accounts` (uid/gid 65532) unless the operator needs a
+    different runtime user. `version` is bumped by Release Please.
 
 - `.github/workflows/attest.yml`
   - The reusable workflow that signs binary/image/chart provenance in isolation
@@ -298,12 +308,12 @@ that shape, trim the release files before the first release.
 
 - `.github/workflows/release-dry-run.yml`
   - Update image and chart refs.
-  - Update binary validation names, dry-run image names, OCI archive names,
-    cache scopes, chart paths, and rendered-output assertions.
+  - Update binary validation names, dry-run image names, chart paths, and
+    rendered-output assertions.
 
 - `.github/workflows/security-scan.yml`
-  - Update local scan image tag, Docker cache scope, scan image ref, and SARIF
-    category if the category should include the project name.
+  - Update the local scan image tag, scan image ref, and SARIF category if the
+    category should include the project name.
 
 - `.github/workflows/release-please.yml`
   - Confirm release app variable and secret names.
@@ -399,6 +409,12 @@ that shape, trim the release files before the first release.
     keeps repo-local operator guidance.
   - Keep the skill concise and workflow-oriented. Move deeper reference
     material under `references/` only if it becomes necessary.
+
+- `.agents/skills/mise/`, `.agents/skills/melange/`, `.agents/skills/apko/`
+  - Repo-local tooling skills for the mise toolchain and the melange + apko image
+    build. Update tool lists, image names, and the `./cmd` / `/usr/bin/manager`
+    paths if the generated repository renames the binary or changes the toolset;
+    otherwise they carry over unchanged.
 
 - `.session.md` and lifecycle skills under `.agents/skills/session-*`
   - Keep these files unless the generated repository will not use the local
