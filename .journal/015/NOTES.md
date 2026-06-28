@@ -396,3 +396,22 @@ HAND-OFF / residue (matches the sibling pattern):
 - CHANGELOG carries the 0.1.3 entry; manifest is 0.1.3. No broken/extra tags or
   releases (clean first pass).
 - Stale dependabot/release PRs (#37/#38/#40/#44) are unrelated, left for triage.
+
+## 2026-06-28 15:54 — Close
+Session 015 closed. All work landed DURING the session (reviewed + approved
+iteratively):
+- #42 `f708c83` Proto→mise + moon system toolchain.
+- #43 `800bbfb` Dockerfile→melange/apko (+ keyless cosign, syft SBOM).
+- #45 `d26d07f` provenance→reusable attest.yml (SLSA L3) + Kyverno signer flip.
+- #46 `a9cc2dc` mise/melange/apko skills + docs.
+- release-please #47 `a9bf6a4` `chore(master): release 0.1.3` → tag v0.1.3 →
+  `release.yml` run 28338367187 ALL GREEN → clean first-pass rehearsal,
+  cryptographically verified (image + chart SLSA L3 signer attest.yml, cosign,
+  syft SBOM, multi-arch amd64+arm64).
+All implementation worktrees removed; local `master` fast-forwarded to `a9bf6a4`;
+no open session PRs; no tracked `.journal` on master.
+
+HAND-OFF: **the v0.1.3 GitHub release is a DRAFT awaiting a human publish** (image
++ chart already live on GHCR). `gh release edit v0.1.3 --draft=false` to publish.
+SUMMARY.md written; INDEX row 015 → complete; TECH_NOTES already carries the
+durable mise/melange/apko/SLSA-L3 context.

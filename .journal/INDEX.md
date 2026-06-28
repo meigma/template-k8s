@@ -15,3 +15,4 @@
 | 011 | 2026-05-20 | Kyverno image verification policy | complete | Added an optional Kyverno image verification policy for the Helm chart and merged it via PR #30 after Kind/Kyverno proof against `v0.1.2`. |
 | 013 | 2026-05-20 | Local operator development stack | complete | Added the Proto-managed ctlptl/Kind/Tilt/ko dev stack, proved it with a full smoke, documented the flow, and merged it via PR #32. |
 | 014 | 2026-05-20 | Moon task surface slimming | complete | Reduced Moon recipe sprawl, consolidated static validation under `root:check`, removed the dev-stack smoke task, and merged it via PR #33. |
+| 015 | 2026-06-28 | Reproduce template-go-api session 015 tooling (mise + melange/apko + SLSA L3) | complete | Reproduced the mise + melange/apko + reusable-attest (SLSA L3) migration as four merged PRs (#42/#43/#45/#46) and proved it with a clean first-pass `v0.1.3` release rehearsal (cosign + L3 attestations verified, signer `attest.yml`). |
