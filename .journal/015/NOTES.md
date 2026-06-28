@@ -282,3 +282,32 @@ Design (Option A — chart provenance also isolated):
 it) → the throwaway-tag rehearsal is the final check. Adversarial review running
 (wf_ef01f372): reusable-workflow perms/contexts, kyverno predicate alignment,
 graph/completeness.
+
+## 2026-06-28 14:58 — PR3 review clean, CI caught a test, fixed, green (PR #45)
+Adversarial review (wf_ef01f372): **all 3 dimensions ZERO findings** — callers grant
+the full perm set, `with:` uses needs-outputs not env, attest.yml self-sufficient
+GHCR login, kyverno predicate preserved, graph complete. Also ran **actionlint**
+(via `MISE_LOCKED=0 mise x aqua:rhysd/actionlint@1.7.12`) on all 5 workflows → exit
+0 (validates reusable-workflow calls/contexts structurally; mise verified
+actionlint's own GitHub attestations on install — PR1 integrity in action).
+
+PR #45 opened; dispatched dry-run **all green** (binary + melange amd64/arm64 + apko
++ helm). But PR `ci` **FAILED on root:test**:
+`TestKyvernoImageVerificationPolicyRendersGitHubAttestationPolicy`
+(test/chart/rbac_test.go) asserts the rendered Kyverno `subjectRegExp`, still
+expecting `release.yml`. **MY MISS: for PR3 I ran `root:check` but not `root:test`.**
+`root:check`'s chart test is only `go test ./test/chart -run
+TestManagerRBACMatchesControllerGen` (RBAC drift); the Kyverno-render assertion lives
+in the FULL `go test ./...` that only `root:test` runs. Fixed the test to expect
+`attest.yml`, re-ran **full root:test ✓**, amended (`f8b2696`), force-pushed. PR #45
+`ci` now **pass** + Kusari pass.
+
+LESSON (durable, added to TECH_NOTES): chart `values.yaml`/template changes must be
+validated with `root:test` (full chart suite), not just `root:check` (RBAC-drift
+subset). The render-assertion test correctly catching the signer flip is the system
+working as intended.
+
+PR3 open + green, awaiting review/merge. Next: **PR4** — port
+`.agents/skills/{mise,melange,apko}` (adapt for the operator tool set + Helm/Kyverno)
++ the docs pass (README/AGENTS/DELETE_ME), including the PR2 DELETE_ME melange/apko
+residue (stale "Docker cache scopes", missing melange/apko entries) deferred here.
