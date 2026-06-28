@@ -243,3 +243,42 @@ PR2 open + green, awaiting review/merge. Next: PR3 (provenance → reusable
 `attest.yml` for SLSA L3, chart attestation Option A into attest.yml, and the
 Kyverno signer flip release.yml→attest.yml in values.yaml — the high-stakes
 cross-cutting change).
+
+PR2 merged to master `800bbfb` (squash). Worktree/branch cleaned.
+
+## 2026-06-28 14:49 — PR3 built (commit 41184f1, review running)
+Branch `ci/slsa-l3-provenance` off master, commit `41184f1`
+`ci(release): generate provenance in an isolated reusable workflow (SLSA L3)`.
+
+Design (Option A — chart provenance also isolated):
+- `.github/workflows/attest.yml` (new, `workflow_call`): one isolated `attest` job
+  → binary checksums (`actions/attest --subject-checksums`) + OCI provenance
+  (`actions/attest-build-provenance@v4.1.1`, used for BOTH image and chart). Own
+  GHCR `docker/login` gated on subject-digest. Job declares id-token/attestations/
+  contents:read/**packages:write**.
+- release.yml: dropped the 3 inline `actions/attest` provenance steps; added
+  `attest-binaries` / `attest-image` / `attest-chart` caller jobs. binary job now
+  uploads `checksums.txt` as `release-checksums` artifact; **keyless cosign + syft
+  image SBOM attest STAY inline** (separate controls, not SLSA provenance).
+- 3 hard-won bugs pre-empted: (a) every caller grants `packages: write` (incl. the
+  binary one) since the shared reusable job declares it; (b) attest.yml has its own
+  GHCR login; (c) reusable-workflow `with:` uses **needs-outputs not env** — so
+  helm-chart-release gained a `chart-name` output (`env.CHART_NAME` is illegal in a
+  reusable `with:`). image uses container-image-release.outputs.image-{name,digest}.
+- **Kyverno signer flip (the landmine):** values.yaml `attestor.subjectRegExp`
+  release.yml→attest.yml. `attest-build-provenance` emits the SAME predicate
+  (`slsa.dev/provenance/v1`) + buildType (`buildtypes/workflow/v1`) the policy
+  already requires — verified live against the v0.1.2 image — so ONLY the signer
+  identity changes. Confirmed `helm template --set kyverno…enabled=true` now renders
+  attest.yml. values.schema.json unaffected (free-string regex).
+- Summary: 3 `gh attestation verify` → attest.yml; added a `cosign verify` line
+  (signer stays release.yml — cosign signing is unchanged). DELETE_ME: documented
+  attest.yml as the provenance signer + the Kyverno coupling. (DELETE_ME melange/apko
+  residue from PR2 — stale "Docker cache scopes", missing melange/apko entries —
+  deferred to PR4's docs pass.)
+
+`root:check` ✓, `git diff --check` clean, YAML + job graph valid (all needs resolve;
+3 callers wired). The attest.yml path is unreachable by dry-run (only a real tag runs
+it) → the throwaway-tag rehearsal is the final check. Adversarial review running
+(wf_ef01f372): reusable-workflow perms/contexts, kyverno predicate alignment,
+graph/completeness.
