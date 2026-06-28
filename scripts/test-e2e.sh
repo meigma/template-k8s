@@ -30,7 +30,9 @@ fi
 "$kind_bin" export kubeconfig --name "$cluster" --kubeconfig "$kubeconfig"
 export KUBECONFIG="$kubeconfig"
 
-docker build -t "$manager_image" .
+# Build the operator image with melange + apko (the release path) and load it
+# into the Kind cluster, so e2e exercises the same Wolfi nonroot image that ships.
+IMG="$manager_image" bash dev/image-build.sh
 "$kind_bin" load docker-image "$manager_image" --name "$cluster"
 
 KIND="$kind_bin" KIND_CLUSTER="$cluster" IMG="$manager_image" KUBECTL_KUBERC="${KUBECTL_KUBERC:-false}" \

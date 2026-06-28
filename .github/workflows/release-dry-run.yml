@@ -120,8 +120,10 @@ jobs:
           fi
           test -s /tmp/template-k8s-help.txt
 
-  container-image-platform-dry-run:
-    name: Container Image Platform Dry Run (${{ matrix.platform }})
+  # Rehearse the container build: build per-arch signed apks on native runners and
+  # assemble the image with apko, WITHOUT pushing, signing, or attesting.
+  melange-build-dry-run:
+    name: Melange Build Dry Run (${{ matrix.arch }})
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--') }}
     runs-on: ${{ matrix.runner }}
     permissions:
@@ -130,12 +132,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: linux/amd64
+          - arch: amd64
             runner: ubuntu-24.04
-            arch: amd64
-          - platform: linux/arm64
+            apkdir: x86_64
+          - arch: arm64
             runner: ubuntu-24.04-arm
-            arch: arm64
+            apkdir: aarch64
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -143,57 +145,50 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Resolve dry-run metadata
-        id: dry-run
-        env:
-          DRY_RUN_VERSION: 0.0.0-dryrun.${{ github.run_id }}.${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-
-          echo "version=${DRY_RUN_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "date=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-
-      - name: Build platform OCI archive
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+      - name: Setup mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
         with:
-          context: .
-          push: false
-          platforms: ${{ matrix.platform }}
-          outputs: type=oci,dest=/tmp/template-k8s-dry-run-${{ matrix.arch }}.oci
-          provenance: mode=max
-          sbom: true
-          cache-from: type=gha,scope=template-k8s-release-dry-run-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run-${{ matrix.arch }}
-          build-args: |
-            VERSION=${{ steps.dry-run.outputs.version }}
-            COMMIT=${{ steps.dry-run.outputs.commit }}
-            DATE=${{ steps.dry-run.outputs.date }}
-            SOURCE=https://github.com/${{ github.repository }}
+          version: 2026.6.14
+          cache: true
 
-      - name: Validate platform OCI archive
-        run: test -s /tmp/template-k8s-dry-run-${{ matrix.arch }}.oci
+      - name: Generate ephemeral signing key
+        run: melange keygen "melange-${{ matrix.arch }}.rsa"
+
+      - name: Build signed apk
+        run: |
+          melange build melange.yaml \
+            --arch ${{ matrix.arch }} \
+            --runner docker \
+            --signing-key "melange-${{ matrix.arch }}.rsa" \
+            --source-dir .
+
+      - name: Upload apk and public key
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apk-${{ matrix.arch }}
+          path: |
+            packages/${{ matrix.apkdir }}/**
+            melange-${{ matrix.arch }}.rsa.pub
+          if-no-files-found: error
+          retention-days: 1
 
   container-image-dry-run:
     name: Container Image Dry Run
     needs:
-      - container-image-platform-dry-run
+      - melange-build-dry-run
     if: ${{ always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please--')) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Check platform dry-run result
+      - name: Check melange dry-run result
         env:
-          PLATFORM_RESULT: ${{ needs.container-image-platform-dry-run.result }}
+          MELANGE_RESULT: ${{ needs.melange-build-dry-run.result }}
         run: |
           set -euo pipefail
 
-          if [ "$PLATFORM_RESULT" != "success" ]; then
-            echo "container platform dry-run result was $PLATFORM_RESULT" >&2
+          if [ "$MELANGE_RESULT" != "success" ]; then
+            echo "melange dry-run result was $MELANGE_RESULT" >&2
             exit 1
           fi
 
@@ -203,38 +198,30 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Resolve dry-run metadata
-        id: dry-run
-        env:
-          DRY_RUN_VERSION: 0.0.0-dryrun.${{ github.run_id }}.${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-
-          echo "version=${DRY_RUN_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "date=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-
-      - name: Build local smoke-test image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+      - name: Setup mise
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
         with:
-          context: .
-          load: true
-          platforms: linux/amd64
-          tags: template-k8s:dry-run
-          cache-from: type=gha,scope=template-k8s-release-dry-run-amd64
-          cache-to: type=gha,mode=max,scope=template-k8s-release-dry-run-amd64
-          build-args: |
-            VERSION=${{ steps.dry-run.outputs.version }}
-            COMMIT=${{ steps.dry-run.outputs.commit }}
-            DATE=${{ steps.dry-run.outputs.date }}
-            SOURCE=https://github.com/${{ github.repository }}
+          version: 2026.6.14
+          cache: true
 
-      - name: Smoke test local image
+      - name: Download per-arch apks and public keys
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: apk-*
+          path: .
+          merge-multiple: true
+
+      - name: Assemble image and smoke test (no push)
         run: |
           set -euo pipefail
+
+          apko build apko.yaml template-k8s:dry-run image.tar \
+            --arch amd64 \
+            --keyring-append ./melange-amd64.rsa.pub \
+            --keyring-append ./melange-arm64.rsa.pub
+
+          docker load < image.tar
+          docker tag template-k8s:dry-run-amd64 template-k8s:dry-run
 
           set +e
           docker run --rm template-k8s:dry-run --help >/tmp/template-k8s-image-help.txt 2>&1

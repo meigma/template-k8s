@@ -15,6 +15,14 @@
         {
           "type": "generic",
           "path": "charts/template-k8s/Chart.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "melange.yaml"
+        },
+        {
+          "type": "generic",
+          "path": "apko.yaml"
         }
       ]
     }

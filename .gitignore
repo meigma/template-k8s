@@ -14,6 +14,17 @@ coverage.html
 *.test
 *.prof
 
+# Local container build artifacts (melange apks + ephemeral signing keys + apko
+# image tarballs/SBOMs from dev/image-build.sh). melange.yaml/apko.yaml ARE committed.
+/packages/
+/sbom/
+melange*.rsa
+melange*.rsa.pub
+melange-vars.yaml
+image.tar
+*.oci
+*.spdx.json
+
 # OS/editor noise
 .DS_Store
 .idea/
