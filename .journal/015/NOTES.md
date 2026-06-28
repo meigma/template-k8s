@@ -311,3 +311,29 @@ PR3 open + green, awaiting review/merge. Next: **PR4** — port
 `.agents/skills/{mise,melange,apko}` (adapt for the operator tool set + Helm/Kyverno)
 + the docs pass (README/AGENTS/DELETE_ME), including the PR2 DELETE_ME melange/apko
 residue (stale "Docker cache scopes", missing melange/apko entries) deferred here.
+
+PR3 merged to master `d26d07f` (squash). Worktree/branch cleaned.
+
+## 2026-06-28 15:18 — PR4 built (PR #46) — skills + docs
+Branch `docs/tooling-skills` off master. Ported the 3 tooling skills from
+template-go-api via a port→verify workflow (wf_3c6ef3c9): 3 port agents wrote each
+skill, 3 verify agents adversarially checked against this repo's config.
+- `.agents/skills/{mise,melange,apko}/` (SKILL.md + references/*.md, 1213 lines).
+  Adapted: mise tool list from mise.toml (controller-gen go: backend, chainsaw
+  aqua full path; removed sqlc/mockery/goose/python/uv); melange ./cmd→manager,
+  NO version-var plumbing; apko /usr/bin/manager + uid 65532 + index-digest +
+  cosign/SBOM + attest.yml-L3/Kyverno tie-in.
+- Verify pass: melange + apko CLEAN; mise had 1 low nit (`moon run dev-up`→
+  `root:dev-up`) — fixed. My own sweep: no template-go-api/sqlc/openapi leftovers
+  (the one `.prototools` hit is legit "replaced Proto" context).
+- Docs: AGENTS.md/CLAUDE.md Local Skills → reference the 3 skills; DELETE_ME →
+  added melange.yaml/apko.yaml + skills to the customization checklist and dropped
+  the stale Dockerfile-era notes (Docker cache scopes, OCI archive names, OCI
+  labels). README needs nothing (downstream placeholder; PR1 already added
+  melange/apko/cosign to Prerequisites).
+Docs/markdown only — no Go/chart/workflow logic. PR #46 open; awaiting CI + merge.
+
+That completes the 4-PR reproduction (mise / melange+apko / SLSA L3 / skills+docs).
+Only remaining session item: the optional throwaway-tag release rehearsal to
+exercise the attest.yml L3 publish→cosign→attest→Kyverno path end-to-end (the
+dry-run can't reach it). Deferred pending user decision.
