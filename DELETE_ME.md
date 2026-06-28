@@ -220,8 +220,8 @@ that shape, trim the release files before the first release.
 - `charts/template-k8s/values.yaml`
   - Update `image.repository`.
   - Update `kyverno.imageVerification.attestor.subjectRegExp` so optional
-    Kyverno image verification trusts the generated repository's release
-    workflow.
+    Kyverno image verification trusts the generated repository's provenance
+    signer, the reusable `.github/workflows/attest.yml` (not `release.yml`).
   - Add, remove, or rename values for real controller runtime options.
   - Keep fixed image tags or digests; do not default to `latest`.
 
@@ -243,7 +243,7 @@ that shape, trim the release files before the first release.
 
 - `charts/template-k8s/templates/kyverno-image-policy.yaml`
   - Update the policy name helper and default attestor subject if the chart or
-    release workflow identity changes.
+    the provenance signer workflow (`attest.yml`) identity changes.
   - Keep it optional unless Kyverno is a hard prerequisite for the generated
     repository.
 
@@ -289,6 +289,12 @@ that shape, trim the release files before the first release.
   - Update Docker cache scopes.
   - Update Helm chart paths, rendered-output assertions, install examples, and
     release inspection summary commands.
+
+- `.github/workflows/attest.yml`
+  - The reusable workflow that signs binary/image/chart provenance in isolation
+    (SLSA Build L3). It has no project-specific identifiers, but it IS the signer
+    identity the Kyverno policy and the release inspection summary trust — keep it
+    in sync with `kyverno.imageVerification.attestor.subjectRegExp`.
 
 - `.github/workflows/release-dry-run.yml`
   - Update image and chart refs.

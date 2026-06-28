@@ -80,8 +80,6 @@ jobs:
       - resolve-release
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     steps:
       - name: Check out repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -151,10 +149,31 @@ jobs:
           RELEASE_TAG: ${{ needs.resolve-release.outputs.tag }}
         run: gh release upload "$RELEASE_TAG" dist/release-assets/* --clobber
 
-      - name: Attest release checksums
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+      - name: Upload checksums for isolated attestation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          subject-checksums: dist/release-assets/checksums.txt
+          name: release-checksums
+          path: dist/release-assets/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  # Generate binary provenance in an ISOLATED reusable workflow (SLSA L3): the
+  # signing OIDC token is minted in attest.yml, unreachable by the build steps.
+  attest-binaries:
+    needs:
+      - binary-release-assets
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+      # attest.yml's shared job declares packages: write (for the OCI
+      # attestation's push-to-registry). A reusable workflow cannot request more
+      # permissions than its caller grants, so every caller must grant it — even
+      # the binary one, whose attestation never pushes to a registry.
+      packages: write
+    uses: ./.github/workflows/attest.yml
+    with:
+      checksums-artifact: release-checksums
 
   # Build the per-arch signed apk on a native runner (no QEMU). Each runner mints
   # its own ephemeral melange key (distinct filename) and uploads its apk plus its
@@ -359,15 +378,22 @@ jobs:
           sbom-path: image.spdx.json
           push-to-registry: true
 
-      # SLSA provenance (GitHub artifact attestation). This is the attestation the
-      # chart's optional Kyverno policy verifies; the signer stays release.yml here.
-      # Moving it into an isolated reusable workflow (SLSA L3) is a later change.
-      - name: Attest container image
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
-        with:
-          subject-name: ${{ steps.manifest.outputs.name }}
-          subject-digest: ${{ steps.manifest.outputs.digest }}
-          push-to-registry: true
+  # Generate container provenance in the ISOLATED reusable workflow (SLSA L3). This
+  # is the attestation the chart's optional Kyverno policy verifies — its signer is
+  # now attest.yml, which the chart's Kyverno defaults trust.
+  attest-image:
+    needs:
+      - container-image-release
+    permissions:
+      id-token: write
+      attestations: write
+      packages: write
+      contents: read
+    uses: ./.github/workflows/attest.yml
+    with:
+      subject-name: ${{ needs.container-image-release.outputs.image-name }}
+      subject-digest: ${{ needs.container-image-release.outputs.image-digest }}
+      push-to-registry: true
 
   helm-chart-release:
     name: Helm Chart Release
@@ -378,10 +404,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
-      attestations: write
-      artifact-metadata: write
     outputs:
+      chart-name: ${{ steps.push-chart.outputs.name }}
       chart-digest: ${{ steps.push-chart.outputs.digest }}
     steps:
       - name: Check out repository
@@ -486,14 +510,23 @@ jobs:
             exit "$push_rc"
           fi
 
+          echo "name=$CHART_NAME" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Attest Helm chart
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
-        with:
-          subject-name: ${{ env.CHART_NAME }}
-          subject-digest: ${{ steps.push-chart.outputs.digest }}
-          push-to-registry: true
+  # Generate Helm chart provenance in the ISOLATED reusable workflow (SLSA L3).
+  attest-chart:
+    needs:
+      - helm-chart-release
+    permissions:
+      id-token: write
+      attestations: write
+      packages: write
+      contents: read
+    uses: ./.github/workflows/attest.yml
+    with:
+      subject-name: ${{ needs.helm-chart-release.outputs.chart-name }}
+      subject-digest: ${{ needs.helm-chart-release.outputs.chart-digest }}
+      push-to-registry: true
 
   release-inspection-summary:
     name: Release Inspection Summary
@@ -503,6 +536,9 @@ jobs:
       - binary-release-assets
       - container-image-release
       - helm-chart-release
+      - attest-binaries
+      - attest-image
+      - attest-chart
     permissions: {}
     steps:
       - name: Write inspection summary
@@ -523,7 +559,7 @@ jobs:
             echo '```sh'
             echo "gh release view $RELEASE_TAG --repo $GITHUB_REPOSITORY --json isDraft,assets"
             echo "asset=\"template-k8s_${RELEASE_VERSION}_\$(go env GOOS)_\$(go env GOARCH)\""
-            echo "gh attestation verify \"dist/release-assets/\${asset}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
+            echo "gh attestation verify \"dist/release-assets/\${asset}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/attest.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
             echo '```'
             echo
             echo "Container verification commands:"
@@ -532,7 +568,8 @@ jobs:
             echo "docker login ghcr.io"
             echo "docker pull \"${IMAGE_NAME}:${RELEASE_TAG}\""
             echo "docker run --rm \"${IMAGE_NAME}:${RELEASE_TAG}\" --help"
-            echo "gh attestation verify \"oci://${IMAGE_NAME}@${IMAGE_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
+            echo "gh attestation verify \"oci://${IMAGE_NAME}@${IMAGE_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/attest.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
+            echo "cosign verify \"${IMAGE_NAME}@${IMAGE_DIGEST}\" --certificate-identity-regexp \"^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@.*\" --certificate-oidc-issuer https://token.actions.githubusercontent.com"
             echo '```'
             echo
             echo "Helm chart verification commands:"
@@ -541,7 +578,7 @@ jobs:
             echo "helm show chart \"${CHART_REF}\" --version \"${RELEASE_VERSION}\""
             echo "helm pull \"${CHART_REF}\" --version \"${RELEASE_VERSION}\""
             echo "helm install template-k8s \"${CHART_REF}\" --version \"${RELEASE_VERSION}\" --namespace template-k8s-system --create-namespace"
-            echo "gh attestation verify \"${CHART_REF}@${CHART_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/release.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
+            echo "gh attestation verify \"${CHART_REF}@${CHART_DIGEST}\" --repo \"$GITHUB_REPOSITORY\" --signer-workflow \"$GITHUB_REPOSITORY/.github/workflows/attest.yml\" --source-ref \"refs/tags/$RELEASE_TAG\" --deny-self-hosted-runners"
             echo '```'
             echo
             echo "Publish or reject the draft release manually after inspection. The container image and Helm chart are already available in GHCR because GHCR does not have a draft release state."
