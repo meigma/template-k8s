@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/meigma/template-k8s/compare/v0.1.2...v0.1.3) (2026-06-28)
+
+
+### Features
+
+* **chart:** add optional Kyverno image verification ([#30](https://github.com/meigma/template-k8s/issues/30)) ([22b6f50](https://github.com/meigma/template-k8s/commit/22b6f50751bbcd604dcb67955ba108f8f15f46a6))
+* **dev:** add local operator development stack ([#32](https://github.com/meigma/template-k8s/issues/32)) ([e38b988](https://github.com/meigma/template-k8s/commit/e38b98899bdba357ad02e17b754bc2d326b78dd6))
+
 ## [0.1.2](https://github.com/meigma/template-k8s/compare/v0.1.1...v0.1.2) (2026-05-20)
 
 
