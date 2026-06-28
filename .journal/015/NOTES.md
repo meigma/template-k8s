@@ -134,3 +134,39 @@ PR1 scope: `.prototools` + `.moon/proto/*` (+ `.envrc`, `.go-version`) → `mise
 use setup-toolchain). Backends settled: 10 aqua (incl `aqua:kyverno/chainsaw` full
 path) + `ubi:kubernetes-sigs/controller-tools` for controller-gen. Branch
 `build/proto-to-mise` off master, PR + squash merge.
+
+## 2026-06-28 13:50 — PR1 shipped (PR #42, open, CI running)
+**PR #42** `build(tooling): replace proto with mise and run moon on system
+binaries` — branch `build/proto-to-mise` (commit `5477d30`), off master.
+
+Backend reality (verified with local `mise 2026.6.14`, supersedes the assessment):
+- 10 verifying `aqua:` backends: golangci-lint, kubebuilder, setup-envtest
+  (`kubernetes-sigs/controller-runtime/setup-envtest@0.24.1`), kubectl, helm,
+  `aqua:kyverno/chainsaw` (full path), ko, tilt, ctlptl, kind — plus
+  `aqua:moonrepo/moon@2.3.5`.
+- **controller-gen → Go backend** `go:sigs.k8s.io/controller-tools/cmd/controller-gen@0.21.0`,
+  NOT ubi. ubi is DEPRECATED in mise (removed 2027.1.0) AND mis-names the binary
+  `controller-tools`; the Go backend is canonical and yields a correct
+  `controller-gen` (integrity via the Go checksum DB). It locks as a version-only
+  entry and `locked=true` tolerates it.
+- melange 0.54.0 / apko 1.2.19 / cosign 3.1.1 pinned now (for PR2/PR3).
+- mise quirk reproduced: `mise lock` dropped moon's `macos-x64` entry; hand-added
+  from moon's published `.sha256` (`ffc0bf6e…`), with a comment.
+
+What landed: `mise.toml` + `mise.lock` (16 tools, fail-closed `locked=true`);
+`.moon/toolchains.yml` → comments-only; `moon.yml` gains `toolchains.default:
+system` and the `toolchainConfig` fileGroup now tracks mise.toml/mise.lock;
+`ci.yml` + the Helm jobs in `release.yml`/`release-dry-run.yml` →
+`jdx/mise-action@v4.2.0`, `GOTOOLCHAIN: local`, cache keys on `mise.lock`;
+`setup-go` → `go.mod`; deleted `.prototools`/`.moon/proto/*`/`.envrc`/`.go-version`;
+README Prerequisites + AGENTS dev-setup → mise.
+
+Local proof (clean env): `moon run root:check` ✓ and `moon run root:test` ✓
+(envtest k8s 1.35.x via mise setup-envtest). NOTE — local validation needs the
+machine's stray go 1.26.4 neutralized: this host leaks `~/.proto/bin/go`,
+`~/.goenv/shims/go`, and exported `GOPATH=~/go/1.26.4`; combined with mise's
+exported `GOROOT=…/1.26.3` that yields a golangci-lint "go1.26.3 does not match
+go tool version go1.26.4" typecheck error. Run gates via
+`mise exec -- bash -c 'PATH without /.proto/shims; unset GOROOT; moon run …'`.
+A clean CI runner has none of this. `go.sum` churn from a stray `-mod=mod`
+diagnostic was reverted; final tree leaves go.sum pristine.
