@@ -212,3 +212,34 @@ Running an adversarial review workflow (4 reviewers: release-graph,
 supplychain/kyverno, melange-apko-build, completeness) before pushing. apko index
 digest parse (`tail -n1`) + buildx-imagetools-without-setup-buildx are inherited
 from the proven template-go-api v1.0.4 pipeline.
+
+## 2026-06-28 14:29 — PR2 shipped + CI/dry-run green (PR #43, commit 83e16e5)
+Adversarial review (wf_04275e19): 3/4 dimensions clean. Two flagged:
+- **BLOCKER "actions/attest needs predicate-type" = FALSE POSITIVE.** Reviewer
+  reasoned from general knowledge. Checked ground truth: `gh attestation verify
+  oci://ghcr.io/meigma/template-k8s:v0.1.2` → predicateType
+  `slsa.dev/provenance/v1`, buildType `actions.github.io/buildtypes/workflow/v1`.
+  So `actions/attest@v4.1.0` (no predicate-type) DOES emit SLSA build provenance —
+  exactly the Kyverno contract. The step I preserved is correct. (Lesson: verify
+  supply-chain claims against the published artifact, not action docs from memory.)
+- **HIGH "is the attested digest the multi-arch INDEX digest?" = FIXED.** Switched
+  from parsing apko stdout (`tail -n1`) to resolving the index digest
+  authoritatively from the registry (`docker buildx imagetools inspect |
+  jq .manifest.digest`) — the old buildx job's pattern. cosign/syft-SBOM/provenance
+  + job outputs all bind to `steps.manifest.outputs.{digest,ref,name}`.
+- Medium (cosign OIDC in release.yml) = not a bug; release.yml is tag-gated +
+  resolve-release validates the SemVer tag, and release.yml IS the intended cosign
+  signer identity.
+
+PR #43 `build(release): build the container image with melange + apko` (commit
+`83e16e5`). PR `ci` ✓ + Kusari ✓. Dispatched `release-dry-run` (workflow_dispatch
+on the branch, since dry-run jobs gate to release-please/dispatch) → **ALL GREEN**:
+Binary Dry Run ✓, **Melange Build Dry Run amd64 ✓ + arm64 ✓ (native runners, no
+QEMU)**, Container Image Dry Run (apko assemble + smoke) ✓, Helm Chart Dry Run ✓.
+That validates melange/apko on real CI incl. the ubuntu-24.04-arm runner. The
+publish→cosign→attest tag path is unreachable by dry-run (only a real tag runs it).
+
+PR2 open + green, awaiting review/merge. Next: PR3 (provenance → reusable
+`attest.yml` for SLSA L3, chart attestation Option A into attest.yml, and the
+Kyverno signer flip release.yml→attest.yml in values.yaml — the high-stakes
+cross-cutting change).
