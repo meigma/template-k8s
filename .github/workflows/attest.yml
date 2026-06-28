@@ -60,7 +60,7 @@ jobs:
 
       - name: Attest binary checksums
         if: ${{ inputs.checksums-artifact != '' }}
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
           subject-checksums: checksums.txt
 
@@ -69,7 +69,7 @@ jobs:
       # not carry into the reusable workflow's separate runner.
       - name: Log in to GitHub Container Registry
         if: ${{ inputs.subject-digest != '' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
