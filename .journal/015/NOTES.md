@@ -350,3 +350,49 @@ PR #46 `ci`: first run was CANCELLED at Checkout (4s) — concurrency
 Remaining/optional: throwaway-tag release rehearsal (the only thing the dry-run
 can't validate — exercises attest.yml publish→cosign→L3-attest→Kyverno on a real
 v0.1.x tag, as template-go-api did with v1.0.1–v1.0.4).
+
+## 2026-06-28 15:50 — Release rehearsal: CLEAN FIRST-PASS v0.1.3, fully verified
+User approved the rehearsal (like template-go-api/template-mcp). PR #46 merged
+first (`a9cc2dc`→master). Mechanism (per template-mcp lesson: release.yml needs a
+release-please draft — a bare tag can't trigger it):
+- A pending release-please PR #31 `release 0.1.3` already existed (from the post-
+  v0.1.2 feat commits #30/#32) but was **STALE** (branch HEAD post-PR1 only; no
+  melange.yaml/apko.yaml — release-please hadn't rebased it since no version-
+  changing commits landed after). Merging it would have tagged v0.1.3 with
+  melange/apko still at 0.1.2.
+- Fixed by closing #31 + deleting its branch + `gh workflow run release-please.yml`
+  → fresh **PR #47** on current master bumping ALL 5 version files (manifest,
+  Chart.yaml, melange.yaml, apko.yaml, CHANGELOG → 0.1.3). v0.1.3 was free (tags
+  were only v0.1.1/v0.1.2), so no collision (template-mcp hit a stale v0.1.3).
+- PR #47 dry-runs all green (melange amd64/arm64, apko, binary, chart). Squash-
+  merged → release-please cut tag **v0.1.3** + draft release → `release.yml` fired.
+
+**release.yml run 28338367187 = ALL 10 JOBS GREEN** (first attempt, no fix loop —
+the 3 hard-won bugs were pre-applied in PR2/PR3): resolve-release, binary, melange
+amd64+arm64, **attest-binaries**, container-image-release (apko publish + cosign +
+syft SBOM), helm-chart-release, **attest-image**, **attest-chart**, summary.
+
+CRYPTO VERIFICATION (all ✓):
+- Image `ghcr.io/meigma/template-k8s:v0.1.3` index
+  `sha256:d713787b…`, multi-arch linux/amd64+arm64.
+- SLSA L3 provenance: predicateType `slsa.dev/provenance/v1`, buildType
+  `actions.github.io/buildtypes/workflow/v1`, **signer SAN
+  `…/attest.yml@refs/tags/v0.1.3`** — confirms L3 isolation AND exactly matches the
+  flipped Kyverno policy defaults (so a downstream Enforce install accepts this image).
+- cosign keyless sig VERIFIED (claims + Rekor + cert chain), signer release.yml;
+  syft SBOM attestation (`spdx.dev/Document/v2.3`) present.
+- Chart `…/chart@sha256:fe924395…`: SLSA L3 provenance, signer attest.yml (Option A).
+- Draft release v0.1.3: 9 assets (4 bin + 4 syft SBOM + checksums), draft=true.
+
+OUTCOME: cleanest possible rehearsal — straight to a verified v0.1.3 with ZERO
+burned versions (vs template-go-api's 1.0.1–1.0.4 and template-mcp's 0.1.3→0.1.4).
+The full migrated supply chain (mise → melange/apko → cosign/SBOM → SLSA L3
+attest.yml → Kyverno) is proven end-to-end on a real tag.
+
+HAND-OFF / residue (matches the sibling pattern):
+- **v0.1.3 GitHub release is a DRAFT awaiting a human publish** (the image + chart
+  are already live on GHCR — GHCR has no draft state). Publish or reject after
+  inspection.
+- CHANGELOG carries the 0.1.3 entry; manifest is 0.1.3. No broken/extra tags or
+  releases (clean first pass).
+- Stale dependabot/release PRs (#37/#38/#40/#44) are unrelated, left for triage.
