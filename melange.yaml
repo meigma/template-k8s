@@ -1,0 +1,36 @@
+# Builds the template-k8s controller-manager binary into a signed Wolfi apk;
+# apko.yaml assembles it into the minimal multi-arch runtime image. This replaces
+# the former multi-stage Dockerfile.
+#
+# package.version is bumped by release-please (extra-files in release-please-config.json).
+package:
+  name: template-k8s
+  version: "0.1.2" # x-release-please-version
+  epoch: 0
+  description: Meigma Kubernetes operator repository template
+
+environment:
+  contents:
+    repositories:
+      - https://packages.wolfi.dev/os
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+      - go-1.26
+  environment:
+    CGO_ENABLED: "0"
+
+pipeline:
+  # go/build auto-adds -trimpath and installs to /usr/bin/<output>. Mirrors the
+  # former Dockerfile (`go build -o manager ./cmd`): the output is the operator
+  # manager binary and apko's entrypoint. No version vars are stamped (cmd has no
+  # main.version symbol), matching the prior image.
+  - uses: go/build
+    with:
+      packages: ./cmd
+      output: manager
+      go-package: go-1.26
+      modroot: .
+      strip: "-s -w"
+      ldflags: "-buildid="
+      extra-args: "-mod=readonly -buildvcs=false"
