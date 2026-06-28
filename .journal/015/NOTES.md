@@ -170,3 +170,45 @@ go tool version go1.26.4" typecheck error. Run gates via
 `mise exec -- bash -c 'PATH without /.proto/shims; unset GOROOT; moon run …'`.
 A clean CI runner has none of this. `go.sum` churn from a stray `-mod=mod`
 diagnostic was reverted; final tree leaves go.sum pristine.
+
+PR1 merged to master `f708c83` (squash). Worktree/branch cleaned.
+
+## 2026-06-28 14:12 — PR2 built + validated (commit b352449, review running)
+Branch `build/melange-apko` off master, commit `b352449`
+`build(release): build the container image with melange + apko`.
+
+Grounded design facts (verified against both repos before authoring):
+- Release image is built from `Dockerfile` + `docker buildx` (NOT ko); ko is only
+  the Tilt dev builder → untouched. Swap targets the release path.
+- **Kyverno needs NO change in PR2.** values.yaml defaults trust
+  `release.yml@refs/tags/v…` + `buildType .../workflow/v1` + type
+  `slsa.dev/provenance/v1`. The Kyverno-verified attestation is the inline
+  `actions/attest@v4.1.0` step (empirically produces SLSA provenance; no
+  predicate-type needed). PR2 keeps that step on the apko index digest, signer
+  stays release.yml → contract preserved. Signer flip is PR3.
+- cmd has NO version vars → melange ldflags `-buildid=` + strip only (matches the
+  old Dockerfile's no-stamp behavior); no `-X`/vars-file plumbing.
+- master is NOT branch-protected → free to rename dry-run jobs
+  (container-image-platform-dry-run → melange-build-dry-run).
+- `scripts/test-e2e.sh` did `docker build .` → had to repoint e2e at the apko
+  image (new `dev/image-build.sh`, melange+apko host-arch → kind load).
+
+What landed: `melange.yaml` (./cmd → /usr/bin/manager apk), `apko.yaml` (Wolfi
+nonroot 65532, ca-certs/tzdata, amd64+arm64, entrypoint /usr/bin/manager);
+release.yml `container-image-build`(buildx matrix)→`melange-build` + apko-publish
+`container-image-release` with keyless cosign + syft SBOM attest + preserved
+`actions/attest` provenance; release-dry-run.yml + security-scan.yml → melange/apko;
+`dev/image-build.sh` + test-e2e.sh; release-please extra-files += melange/apko;
+deleted Dockerfile/.dockerignore; gitignore local apk/key/sbom artifacts.
+
+LOCAL PROOF: `dev/image-build.sh` built the apk (`cmd:manager=0.1.2-r0`) + apko
+image; `docker run template-k8s:dev --help` → "Kubernetes controller manager"
+exit 0; **User=65532, Entrypoint /usr/bin/manager, ~51MB, no shell** (matches the
+former distroless:nonroot). `helm template --set kyverno...enabled=true` still
+renders the policy trusting release.yml + workflow/v1 buildType. `root:check` ✓,
+`git diff --check` clean, no artifact leaks.
+
+Running an adversarial review workflow (4 reviewers: release-graph,
+supplychain/kyverno, melange-apko-build, completeness) before pushing. apko index
+digest parse (`tail -n1`) + buildx-imagetools-without-setup-buildx are inherited
+from the proven template-go-api v1.0.4 pipeline.
