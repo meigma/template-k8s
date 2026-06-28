@@ -337,3 +337,16 @@ That completes the 4-PR reproduction (mise / melange+apko / SLSA L3 / skills+doc
 Only remaining session item: the optional throwaway-tag release rehearsal to
 exercise the attest.yml L3 publish→cosign→attest→Kyverno path end-to-end (the
 dry-run can't reach it). Deferred pending user decision.
+
+PR #46 `ci`: first run was CANCELLED at Checkout (4s) — concurrency
+`cancel-in-progress` transient hiccup with no superseding run, NOT a code failure
+(docs-only). `gh run rerun` → **pass (55s)** + Kusari pass. PR #46 open + green.
+
+## Session status — all 4 reproduction PRs done
+- #42 `7aac1e1`→`f708c83` Proto→mise (MERGED)
+- #43 `800bbfb` Dockerfile→melange/apko + cosign + syft (MERGED)
+- #45 `d26d07f` provenance→reusable attest.yml (SLSA L3) + Kyverno signer flip (MERGED)
+- #46 docs(skills) mise/melange/apko skills + docs (OPEN, green) — awaiting merge.
+Remaining/optional: throwaway-tag release rehearsal (the only thing the dry-run
+can't validate — exercises attest.yml publish→cosign→L3-attest→Kyverno on a real
+v0.1.x tag, as template-go-api did with v1.0.1–v1.0.4).
