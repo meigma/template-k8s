@@ -1,2 +1,12 @@
-go:
-  version: '1.26.3'
+# Toolchains for the template-k8s operator.
+#
+# Tool versions (Go and every CLI) are managed by mise (mise.toml + mise.lock);
+# moon runs every task against `system` binaries that mise puts on PATH (see
+# `toolchains.default: system` in moon.yml), so no language toolchain is declared
+# here.
+
+# Stable non-JavaScript toolchains in Moon v2 can be added if a generated project
+# needs moon to manage them directly instead of mise.
+# rust:
+#   version: 'REPLACE_ME_RUST_VERSION'
+#   components: ['clippy', 'rustfmt']

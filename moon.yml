@@ -9,6 +9,11 @@ project:
   maintainers:
     - 'meigma'
 
+# Every task runs against `system` binaries that mise (mise.toml + mise.lock) puts
+# on PATH; moon manages no language toolchain itself.
+toolchains:
+  default: 'system'
+
 fileGroups:
   goSources:
     - 'api/**/*.go'
@@ -34,9 +39,12 @@ fileGroups:
     - 'Tiltfile'
     - 'dev/ctlptl.yaml'
     - 'dev/ko-build.sh'
+  # Tool/version pins. Under the `system` toolchain moon does not hash a tool
+  # binary's version, so the mise pins are task inputs — bumping any tool in mise
+  # must invalidate the tasks that consume it.
   toolchainConfig:
-    - '.prototools'
-    - '.moon/proto/**/*.toml'
+    - 'mise.toml'
+    - 'mise.lock'
 
 workspace:
   inheritedTasks:

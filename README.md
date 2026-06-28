@@ -29,18 +29,22 @@ Replace bracketed placeholders before publishing this README.
 
 ## Prerequisites
 
-- Go, Kubebuilder tooling, controller-gen, setup-envtest, Helm, kubectl, and
-  Chainsaw from the repository toolchain.
+- [mise](https://mise.jdx.dev) — provisions every pinned tool from `mise.toml` +
+  `mise.lock`: Go, Moon, the Kubebuilder operator CLIs (`controller-gen`,
+  `setup-envtest`, `kubebuilder`, `kubectl`, `helm`, `chainsaw`), the local dev
+  stack (`ko`, `tilt`, `ctlptl`, `kind`), and `melange`/`apko`/`cosign` for the
+  release image. Run `mise install` once; there is nothing else to install by hand.
 - Docker or another container runtime for local image builds.
 - A Kubernetes cluster for deployed testing. Kind is recommended for local e2e
   checks.
 
-Enable the pinned local toolchain:
-
-```sh
-direnv allow
-proto status
-```
+Tool versions live in `mise.toml`; `mise.lock` records a per-platform download URL
+and checksum for each (and, for the aqua-backed CLIs, cosign/SLSA/GitHub-attestation
+verification). `mise install` runs with `locked = true`, so it **fails closed** if a
+tool lacks a pre-resolved, checksummed entry for the current platform. To bump a
+tool, edit its version in `mise.toml`, run
+`mise lock --platform linux-x64,linux-arm64,macos-x64,macos-arm64`, and commit
+`mise.toml` + `mise.lock` together.
 
 ## Installation
 

@@ -32,9 +32,15 @@ expects agents to follow.
 
 ## Development Workflow
 
-Moon is the task front door. Do not add or restore Makefile-driven workflows.
-If upstream Kubebuilder docs say to run `make`, translate the step to the
-matching Moon task.
+mise is the tool front door: it provisions every pinned binary (Go, Moon, and
+the operator/dev/release CLIs) from `mise.toml` + `mise.lock`. Run `mise install`
+once; do not restore the removed Proto config (`.prototools`, `.moon/proto/`) or
+`.envrc`. Bump a tool by editing `mise.toml` and re-running
+`mise lock --platform linux-x64,linux-arm64,macos-x64,macos-arm64`.
+
+Moon is the task front door, and runs those tools as `system` binaries. Do not
+add or restore Makefile-driven workflows. If upstream Kubebuilder docs say to run
+`make`, translate the step to the matching Moon task.
 
 Keep the Moon task surface small. Prefer extending `root:check`, `root:test`,
 or an existing script over adding narrowly scoped recipes. Add a new Moon task
@@ -61,7 +67,7 @@ Use the local dev stack when you need a fast operator feedback loop in Kind.
 Run it through Moon from the repo root:
 
 ```sh
-direnv allow
+mise install
 moon run root:dev-up
 moon run root:dev-down
 ```
