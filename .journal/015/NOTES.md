@@ -117,3 +117,20 @@ OPEN DECISIONS for the user (assessment delivered; awaiting direction, no code y
 - Helm chart attestation: move into attest.yml (Option A) vs inline (Option B) — recommend A.
 - Forced-release rehearsal: do it (burns a patch tag) vs stop at merged config — TBD.
 - PR sequencing: 4 PRs as above vs different bundling.
+
+## 2026-06-28 13:30 — Decisions made; starting PR1
+User answered (AskUserQuestion):
+1. **Fidelity = Faithful**: add keyless cosign + syft SBOM (on top of existing
+   GitHub attestation) in PR2, matching session 015 exactly.
+2. **Chart attestation = Option A**: move the Helm chart OCI provenance into the
+   reusable `attest.yml` (third `attest-chart` caller) for full SLSA L3 across all
+   three artifact classes.
+3. **Proceed = Start PR1 (Proto→mise) now.**
+Rehearsal decision deferred to after PR3.
+
+PR1 scope: `.prototools` + `.moon/proto/*` (+ `.envrc`, `.go-version`) → `mise.toml`
++ `mise.lock`; moon on system toolchain; CI `moonrepo/setup-toolchain` →
+`jdx/mise-action` (ci.yml AND the helm jobs in release.yml/release-dry-run.yml that
+use setup-toolchain). Backends settled: 10 aqua (incl `aqua:kyverno/chainsaw` full
+path) + `ubi:kubernetes-sigs/controller-tools` for controller-gen. Branch
+`build/proto-to-mise` off master, PR + squash merge.
