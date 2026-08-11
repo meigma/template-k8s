@@ -60,7 +60,7 @@ jobs:
 
       - name: Attest binary checksums
         if: ${{ inputs.checksums-artifact != '' }}
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-checksums: checksums.txt
 
@@ -69,7 +69,7 @@ jobs:
       # not carry into the reusable workflow's separate runner.
       - name: Log in to GitHub Container Registry
         if: ${{ inputs.subject-digest != '' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -77,7 +77,7 @@ jobs:
 
       - name: Attest OCI provenance
         if: ${{ inputs.subject-digest != '' }}
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ inputs.subject-name }}
           subject-digest: ${{ inputs.subject-digest }}
